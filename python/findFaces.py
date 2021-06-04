@@ -55,9 +55,9 @@ def main(argv):
 
     with open(argv[0], 'w') as json_file:
         json.dump(data, json_file)
-    
+
     return 0
-    
+
 def calcFaces(img, sheetData):
     # finds most likely face dimensions (currently checks for [32 / 64 / ...])
     results = {}
@@ -121,7 +121,7 @@ def calcFaces(img, sheetData):
     while(len(results) > 0):
         print(results)
 
-        # Switched highest probability to smallest dimension. (Wrong) large dimensions tend to be rated too highly 
+        # Switched highest probability to smallest dimension. (Wrong) large dimensions tend to be rated too highly
         # when compared to their neighbours and the results are already filtered for good probability.
 
         # highestProbabilityKey = max(results, key = lambda k : results.get(k)[0])   # get key of highest probability (large dimensions tend to rate too high though)
@@ -132,8 +132,8 @@ def calcFaces(img, sheetData):
         face_reference = results.get(smallestDimensionKey)[1]
         print("Most probable dimensions for this sprite sheet's faces:", dim, "aligned to the", dirStr, "side.")
 
-        # find body height bottom to top. The first two rows missing a face are declared the bottom 
-        # of the body sprite. This may causes extremely rare false positives on sprites missing a face 
+        # find body height bottom to top. The first two rows missing a face are declared the bottom
+        # of the body sprite. This may causes extremely rare false positives on sprites missing a face
         # on their first face slot of two following rows, but that's fine with me.
         y1 = row_count-dim
         y2 = row_count
@@ -187,11 +187,11 @@ def calcFaces(img, sheetData):
                 sheetData["headX"] = matchLoc[0]
                 sheetData["headY"] = matchLoc[1] - IMG_PADDING_TOP # subtracts image padding used to find faces in negative y
                 sheetData["dialogOffsetX"] = 0
-                # No idea how to even estimate values for dialogOffsetY. 
-                # Would probably need some big data set and some big maths. Or machine learning. 
-                # Right now I just adjust values by hand as needed. Manual entries are mostly done by granting 10px of space 
+                # No idea how to even estimate values for dialogOffsetY.
+                # Would probably need some big data set and some big maths. Or machine learning.
+                # Right now I just adjust values by hand as needed. Manual entries are mostly done by granting 10px of space
                 # above (physical) head. Could probably do something similiar programmically.
-                # sheetData["dialogOffsetY"] = 0  
+                # sheetData["dialogOffsetY"] = 0
                 sheetData["specialFormat"] = SPRITE_FORMAT_NORMAL
                 sheetData["certainty"] = certainty
                 break # we found our desired result, so break the result loop. Not pretty, I know.
@@ -217,6 +217,6 @@ def calcFaces(img, sheetData):
         sheetData["certainty"] = 0.0
     print(sheetData)
     return sheetData
-    
+
 if __name__ == "__main__":
     main(sys.argv[1:])

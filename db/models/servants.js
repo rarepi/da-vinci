@@ -40,9 +40,9 @@ module.exports = function(sequelize, DataTypes){
 
     servants.findByClass = function(classId) {
         return this.findAll({
-            where: { 
-                class: classId 
-            } 
+            where: {
+                class: classId
+            }
         })
     }
 

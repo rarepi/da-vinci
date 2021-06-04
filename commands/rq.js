@@ -13,14 +13,14 @@ const parseDialogues = async () => {
 parseDialogues();
 
 module.exports = {
-	name: 'rq',
-	description: 'Posts a random FGO dialogue quote by Da Vinci.',
-	execute(message, args) {
-		let rnd = Math.floor(Math.random() * dialogues.length);
-		message.channel.send(`${dialogues[rnd][0]}`, {
-			files: [{
-				attachment: `${dialogues[rnd][1]}`,
-			  }]
-		  });
-	},
+    name: 'rq',
+    description: 'Posts a random FGO dialogue quote by Da Vinci.',
+    execute(message, args) {
+        let rnd = Math.floor(Math.random() * dialogues.length);
+        message.channel.send(`${dialogues[rnd][0]}`, {
+            files: [{
+                attachment: `${dialogues[rnd][1]}`,
+              }]
+          });
+    },
 };

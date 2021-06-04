@@ -87,8 +87,8 @@ module.exports = function(sequelize, DataTypes){
                     [Sequelize.Op.or]: [0, 1]
                   }
             },
-            attributes: [   
-                'id', 
+            attributes: [
+                'id',
                 ['description', 'name'],
                 'dialogOffsetX',
                 'dialogOffsetY',
@@ -108,8 +108,8 @@ module.exports = function(sequelize, DataTypes){
             || typeof(this.certainty) === 'undefined') {
                 throw('status requires \'dialogOffsetX\', \'dialogOffsetY\' and \'certainty\' to be fetched. ')
             }
-        return this.dialogOffsetX != null 
-            && this.dialogOffsetY != null 
+        return this.dialogOffsetX != null
+            && this.dialogOffsetY != null
             && this.certainty >= 0.99;
         }
 
