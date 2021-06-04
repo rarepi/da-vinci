@@ -158,54 +158,6 @@ async function buildIndexedExpressionSheet(path, bodyWidth, bodyHeight, eWidth, 
 	}
 }
 
-async function runExpressionPicker(message, indexedExpressionSheet) {
-	const expressionSheetImage = new Discord.MessageAttachment(indexedExpressionSheet.expressionSheet, 'expressions.png');
-	const sheetMsg = await message.channel.send(expressionSheetImage)
-		.catch(error => console.error('Failed to send message: ', error));
-
-	const selectFilter = response => {
-		response_number = response.content.replace('#', '');
-		if (response_number > indexedExpressionSheet.expressions.length) {
-			message.channel.send(`Please select an ID between 0 and ${indexedExpressionSheet.expressions.length}.`)
-				.catch(error => console.error('Failed to send message: ', error));
-			return false;
-		}
-		if (response_number < 0) {
-			message.channel.send(`You're being way too negative.`)
-				.catch(error => console.error('Failed to send message: ', error));
-			return false;
-		}
-		return !isNaN(response_number) && response.author.id === message.author.id;
-	}
-
-	return await message.channel.awaitMessages(selectFilter, { max: 1 })
-		.then(collected => {
-			const itemIdx = collected.first().content.replace('#', '');
-			if(itemIdx === 0) {
-				return null;
-			}
-			if(!sheetMsg.deleted) sheetMsg.delete().catch(console.error);
-			if(!collected.first().deleted) collected.first().delete().catch(console.error);
-			return [indexedExpressionSheet.expressions[itemIdx-1], itemIdx];
-		});
-}
-
-async function runDialogTextInput(message) {
-	const textInputPrompt = await message.channel.send(`Input the dialog text for your generated image.`)
-		.catch(error => console.error('Failed to send message.', error));
-
-	const selectFilter = response => {
-		return response.author.id === message.author.id;
-	}
-	return await message.channel.awaitMessages(selectFilter, { max: 1 })
-		.then(collected => {
-			const input = collected.first().content;
-			if(!collected.first().deleted) collected.first().delete().catch(console.error);
-			if(!textInputPrompt.deleted) textInputPrompt.delete().catch(console.error);
-			return input;
-		});
-}
-
 async function buildCharacterDialog(path, bodyWidth, bodyHeight, headX, headY, eWidth, eHeight, 
 		dialogOffsetX, dialogOffsetY, specialFormat, name, expression, text) {
 
@@ -405,6 +357,55 @@ async function runSheetPicker(initMessage, servant) {
 	// fetch selected sheet
 	return await Sheets.findByPk(sheets[sheetIdx].dataValues.id)
 		.catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
+}
+
+async function runExpressionPicker(message, indexedExpressionSheet) {
+	const expressionSheetImage = new Discord.MessageAttachment(indexedExpressionSheet.expressionSheet, 'expressions.png');
+	const sheetMsg = await message.channel.send(expressionSheetImage)
+		.catch(error => console.error('Failed to send message: ', error));
+
+	const selectFilter = response => {
+		response_number = response.content.replace('#', '');
+		if (response_number > indexedExpressionSheet.expressions.length) {
+			message.channel.send(`Please select an ID between 0 and ${indexedExpressionSheet.expressions.length}.`)
+				.catch(error => console.error('Failed to send message: ', error));
+			return false;
+		}
+		if (response_number < 0) {
+			message.channel.send(`You're being way too negative.`)
+				.catch(error => console.error('Failed to send message: ', error));
+			return false;
+		}
+		return !isNaN(response_number) && response.author.id === message.author.id;
+	}
+
+	return await message.channel.awaitMessages(selectFilter, { max: 1 })
+		.then(collected => {
+			const itemIdx = collected.first().content.replace('#', '');
+			if(itemIdx === 0) {
+				return null;
+			}
+			if(!sheetMsg.deleted) sheetMsg.delete().catch(console.error);
+			if(!collected.first().deleted) collected.first().delete().catch(console.error);
+			return [indexedExpressionSheet.expressions[itemIdx-1], itemIdx];
+		});
+}
+
+async function runDialogTextInput(message) {
+	const textInputPrompt = await message.channel.send(`Input the dialog text for your generated image.`)
+		.catch(error => console.error('Failed to send message.', error));
+
+	const selectFilter = response => {
+		return response.author.id === message.author.id;
+	}
+	return await message.channel.awaitMessages(selectFilter, { max: 1 })
+		.then(collected => {
+			const inputMsg = collected.first();
+			const input = inputMsg.content;
+			if(!inputMsg.deleted) inputMsg.delete().catch(console.error);
+			if(!textInputPrompt.deleted) textInputPrompt.delete().catch(console.error);
+			return input;
+		});
 }
 
 module.exports = {
