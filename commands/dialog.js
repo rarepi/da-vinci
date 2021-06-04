@@ -361,8 +361,10 @@ async function runSheetPicker(initMessage, servant) {
 
 async function runExpressionPicker(message, indexedExpressionSheet) {
     const expressionSheetImage = new Discord.MessageAttachment(indexedExpressionSheet.expressionSheet, 'expressions.png');
-    const sheetMsg = await message.channel.send(expressionSheetImage)
-        .catch(error => console.error('Failed to send message: ', error));
+    const expressionSelectionPrompt = await message.channel.send(
+        `These are the available expressions for this character sheet. Pick one by posting their # in chat. Type \`0\` to choose their default expression.`,
+        {files: [expressionSheetImage]}
+    ).catch(error => console.error('Failed to send message.', error));
 
     const selectFilter = response => {
         response_number = response.content.replace('#', '');
@@ -385,8 +387,8 @@ async function runExpressionPicker(message, indexedExpressionSheet) {
             if(itemIdx === 0) {
                 return null;
             }
-            if(!sheetMsg.deleted) sheetMsg.delete().catch(console.error);
             if(!collected.first().deleted) collected.first().delete().catch(console.error);
+            if(!expressionSelectionPrompt.deleted) expressionSelectionPrompt.delete().catch(console.error);
             return [indexedExpressionSheet.expressions[itemIdx-1], itemIdx];
         });
 }
@@ -504,6 +506,8 @@ module.exports = {
 
         var selectedExpression;
         if(selectedSheet.specialFormat == 0 && selectedSheet.eWidth > 0 && selectedSheet.eWidth > 0) {
+            // puts indices on the expression sheet subimage for every valid expression
+            // indexedExpressionSheet.expressionSheet returns the entire expression sheet, indexedExpressionSheet.expressions is an array of every subimage.
             const indexedExpressionSheet = await buildIndexedExpressionSheet(
                 selectedSheet.path, selectedSheet.bodyWidth, selectedSheet.bodyHeight,
                 selectedSheet.eWidth, selectedSheet.eHeight
@@ -512,15 +516,8 @@ module.exports = {
             if(expressionId === 0) {
                 selectedExpression = null   // use default expression
             } else if(expressionId == null) {
-                const expressionSelectionPrompt = await message.channel.send(
-                    `These are the available expressions for this character sheet. Pick one by posting their # in chat. Type \`0\` to choose their default expression.`
-                ).catch(error => console.error('Failed to send message.', error));
-
                 [selectedExpression, expressionId] = await runExpressionPicker(message, indexedExpressionSheet)
-                    .then(result => {
-                        if(!expressionSelectionPrompt.deleted) expressionSelectionPrompt.delete().catch(console.error);
-                        return result;
-                    }).catch(error => console.error('Error encountered while collecting expression selection.', error));
+                    .catch(error => console.error('Error encountered while collecting expression selection.', error));
             } else {
                 if(expressionId <= indexedExpressionSheet.expressions.length) {
                     selectedExpression = indexedExpressionSheet.expressions[expressionId-1];
