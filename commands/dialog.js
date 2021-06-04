@@ -4,6 +4,7 @@ const db = require('../models.js');
 const Canvas = require('canvas');
 const {Op} = require('sequelize');
 const Path = require('path');
+const servant = require('./servant.js');
 
 const COMMAND_NAME = Path.basename(module.filename, Path.extname(module.filename))
 const LIST_PAGE_SIZE = 15;
@@ -158,9 +159,9 @@ async function buildIndexedExpressionSheet(path, bodyWidth, bodyHeight, eWidth, 
 	}
 }
 
-async function expressionSelectionMessage(message, indexedExpressionSheet) {
+async function runExpressionPicker(message, indexedExpressionSheet) {
 	const expressionSheetImage = new Discord.MessageAttachment(indexedExpressionSheet.expressionSheet, 'expressions.png');
-	sheetMsg = await message.channel.send(expressionSheetImage)
+	const sheetMsg = await message.channel.send(expressionSheetImage)
 		.catch(error => console.error('Failed to send message: ', error));
 
 	const selectFilter = response => {
@@ -184,9 +185,25 @@ async function expressionSelectionMessage(message, indexedExpressionSheet) {
 			if(itemIdx === 0) {
 				return null;
 			}
-			sheetMsg.delete();
-			collected.first().delete()
-			return indexedExpressionSheet.expressions[itemIdx-1];
+			if(!sheetMsg.deleted) sheetMsg.delete().catch(console.error);
+			if(!collected.first().deleted) collected.first().delete().catch(console.error);
+			return [indexedExpressionSheet.expressions[itemIdx-1], itemIdx];
+		});
+}
+
+async function runDialogTextInput(message) {
+	const textInputPrompt = await message.channel.send(`Input the dialog text for your generated image.`)
+		.catch(error => console.error('Failed to send message.', error));
+
+	const selectFilter = response => {
+		return response.author.id === message.author.id;
+	}
+	return await message.channel.awaitMessages(selectFilter, { max: 1 })
+		.then(collected => {
+			const input = collected.first().content;
+			if(!collected.first().deleted) collected.first().delete().catch(console.error);
+			if(!textInputPrompt.deleted) textInputPrompt.delete().catch(console.error);
+			return input;
 		});
 }
 
@@ -395,74 +412,142 @@ module.exports = {
 	name: COMMAND_NAME,
 	description: 'Builds a dialog screen as seen in Fate/Grand Order.',
 	async execute(message, args) {
+		var servantId;
 		var sheetId;
-		var text;
+		var expressionId;
+		var dialogText;
+		var displayHint = false;
+
+		// determine arguments
+		const ARG_CASE = {
+			SERVANT_NAME: /^[\w]+$/,							// dialog servant name 							=> dialog James Moriarty
+			SERVANT: /^\[\d+\]$/,								// dialog [servant_id] 							=> dialog [123]
+			SERVANT_AND_SHEET: /^\[\d+:\d+\]$/,					// dialog [servant_id:sheet_id]					=> dialog [123:123]
+			SERVANT_AND_SHEET_AND_EXPR: /^\[\d+:\d+:\d+\]$/,	// dialog [servant_id:sheet_id:expression_id]	=> dialog [123:123:123]
+			SHEET: /^\[:\d+\]$/,								// dialog [:sheet_id]							=> dialog [:123]
+			SHEET_AND_EXPR: /^\[:\d+:\d+\]$/					// dialog [:sheet_id:expression_id]				=> dialog [:123:123]
+		}
+
+		if(args.length < 1) {	// pick servant, sheet, expression id and input text
+			displayHint = true;		// if user supplied no IDs, inform them about the argument syntax after he's done.
+		} else if (ARG_CASE.SERVANT_NAME.test(args[0])) {					// search servant name and pick sheet, expression id and input text
+			return; // TODO not yet implemented
+		} else if (ARG_CASE.SERVANT.test(args[0])) {						// pick sheet, expression id and input text
+			const match = await args.shift().match(/\[(\d+)\]/);
+			servantId = parseInt(match[1]);
+		} else if (ARG_CASE.SERVANT_AND_SHEET.test(args[0])) {				// pick expression id and input text
+			const match = await args.shift().match(/\[(\d+):(\d+)\]/);
+			servantId = parseInt(match[1]);
+			sheetId = parseInt(match[2]);
+		} else if (ARG_CASE.SERVANT_AND_SHEET_AND_EXPR.test(args[0])) {		// input text
+			const match = await args.shift().match(/\[(\d+):(\d+):(\d+)\]/);
+			servantId = parseInt(match[1]);
+			sheetId = parseInt(match[2]);
+			expressionId = parseInt(match[3]);
+		} else if (ARG_CASE.SHEET.test(args[0])) {							// pick expression id and input text
+			const match = await args.shift().match(/\[:(\d+)\]/);
+			sheetId = parseInt(match[1]);
+		} else if (ARG_CASE.SHEET_AND_EXPR.test(args[0])) {					// input text
+			const match = await args.shift().match(/\[:(\d+):(\d+)\]/);
+			sheetId = parseInt(match[1]);
+			expressionId = parseInt(match[2]);
+		} else {
+			message.channel.send(`Invalid input. This error message could use more details.`)
+				.catch(error => console.error('Failed to send message.', error));
+			return;
+		}
+		dialogText = args.join(' ');	// if any arguments follow, it's (supposed to be) the dialog text.
+
 		var selectedClass;
 		var selectedServant;
 		var selectedSheet;
 
-		// determine arguments
-		if(args.length < 1) {	// no args given
-			message.channel.send("You need to at least supply a text for the dialog box.\ne.g. ```§servant Hello!```")
-				.catch(error => console.error('Failed to send message: ', error));
-			return;
-		} else if (/^\[\d+\]$/g.test(args[0])){		// first arg is formatted as: [any integer]
-			sheetId = parseInt(args.shift().replace(/[\[\]]/g, ''));
-		}
-		text = args.join(' ');
-
-		// if no sheetId was given, run the whole process of selecting a servant and a character sheet
-		if(sheetId == null) {
-			selectedClass = await runClassPicker(message).catch(error => console.error('Class Picker failed.', error));
-			selectedServant = await runServantPicker(message, selectedClass).catch(error => console.error('Servant Picker failed.', error));
-			selectedSheet = await runSheetPicker(message, selectedServant).catch(error => console.error('Sheet Picker failed.', error));
-		} else {
-			// fetch selected sheet
-			selectedSheet = await Sheets.findByPk(sheetId)
+		// Fetch servant if given. Let the user pick a sheet if neither servantId nor sheetId has been provided.
+		if(servantId != null){	// if servant is given, fetch it from db
+			selectedServant = await Servants.findByPk(servantId)
 				.catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
-
-			if(selectedSheet == null) {
-				message.channel.send(`There is no character sheet with the ID ${sheetId}.`)
+			if(selectedServant == null) {
+				message.channel.send(`There is no servant with the ID ${sheetId}.`)
 					.catch(error => console.error('Failed to send message.', error));
 				return;
 			}
-			// fetch selected servant
-			selectedServant = await Servants.findOne({
-				where: {id: selectedSheet.servant},
-				attributes: ['name']
-			}).catch(error => console.error("Error encountered while fetching selected servant from database.", error));
+		} else if(sheetId == null){	// if neither servant nor sheet has been given, run the servant picking process
+			selectedClass = await runClassPicker(message).catch(error => console.error('Class Picker failed.', error));
+			selectedServant = await runServantPicker(message, selectedClass).catch(error => console.error('Servant Picker failed.', error));
+			servantId = selectedServant.dataValues.id;
 		}
+
+		// Fetch sheet if given. User picks sheet if not.
+		if (sheetId != null) {	// if sheet is given, fetch it from db.
+			selectedSheet = await Sheets.findByPk(sheetId)
+				.catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
+			if(selectedSheet == null) {
+				message.channel.send(`There is no character sheet with the ID ${sheetId}.`).catch(error => console.error('Failed to send message.', error));
+				return;
+			}
+			if(selectedServant == null) {	// if no servant has been decided, grab their id from the sheet and fetch their name from db.
+				selectedServant = await Servants.findByPk(selectedSheet.servant)
+					.catch(error => console.error("Error encountered while fetching selected servant from database.", error));
+				servantId = selectedServant.dataValues.id;
+			}
+
+		} else if(selectedServant != null) {	//if servant has been decided and sheet was not given, run the sheet picking process
+			selectedSheet = await runSheetPicker(message, selectedServant).catch(error => console.error('Sheet Picker failed.', error));
+			sheetId = selectedSheet.dataValues.id;
+		}
+		
+		if(selectedServant == null || selectedSheet == null) {
+			throw(`Invalid state reached. Servant is ${selectedServant}, Sheet is ${selectedSheet}.`)
+		}
+
 		const servantName = selectedServant.shortName != null ? selectedServant.shortName : selectedServant.name;
 
-		var expression = null;
+		var selectedExpression;
 		if(selectedSheet.specialFormat == 0 && selectedSheet.eWidth > 0 && selectedSheet.eWidth > 0) {
 			const indexedExpressionSheet = await buildIndexedExpressionSheet(
 				selectedSheet.path, selectedSheet.bodyWidth, selectedSheet.bodyHeight, 
 				selectedSheet.eWidth, selectedSheet.eHeight
 			).catch(error => console.error('Error encountered while indexing expression sheet.', error));
 
-			const expressionSelectionMsg = await message.channel.send(
-				`These are the available expressions for this character sheet. Pick one by posting their # in chat. Type \`0\` to choose their default expression.`
-			).catch(error => console.error('Failed to send message.', error));
+			if(expressionId === 0) {
+				selectedExpression = null	// use default expression
+			} else if(expressionId == null) {
+				const expressionSelectionPrompt = await message.channel.send(
+					`These are the available expressions for this character sheet. Pick one by posting their # in chat. Type \`0\` to choose their default expression.`
+				).catch(error => console.error('Failed to send message.', error));
 
-			expression = await expressionSelectionMessage(message, indexedExpressionSheet)
-				.then(result => {
-					if(!expressionSelectionMsg.deleted) expressionSelectionMsg.delete().catch(console.error);
-					return result;
-				}).catch(error => console.error('Error encountered while collecting expression selection.', error));
+				[selectedExpression, expressionId] = await runExpressionPicker(message, indexedExpressionSheet)
+					.then(result => {
+						if(!expressionSelectionPrompt.deleted) expressionSelectionPrompt.delete().catch(console.error);
+						return result;
+					}).catch(error => console.error('Error encountered while collecting expression selection.', error));
+			} else {
+				if(expressionId <= indexedExpressionSheet.expressions.length) {
+					selectedExpression = indexedExpressionSheet.expressions[expressionId-1];
+				} else {
+					message.channel.send(`Invalid expression ID. ${selectedServant.dataValues.name} has a ID range of 0-${indexedExpressionSheet.expressions.length}`)
+						.catch(error => console.error('Failed to send message.', error))
+					return;
+				}
+			}
+		}
+
+		if(dialogText == null || dialogText.length <= 0) {
+			dialogText = await runDialogTextInput(message)
+			.catch(error => console.error('Error encountered while collecting dialog text input.', error));
 		}
 
 		const imageBuffer = await buildCharacterDialog(
 			selectedSheet.path, selectedSheet.bodyWidth, selectedSheet.bodyHeight, selectedSheet.headX, selectedSheet.headY, 
 			selectedSheet.eWidth, selectedSheet.eHeight, selectedSheet.dialogOffsetX, selectedSheet.dialogOffsetY,
-			selectedSheet.specialFormat, servantName, expression, text
+			selectedSheet.specialFormat, servantName, selectedExpression, dialogText
 		);
 
-		// send image to Discord
+		// send finished image to Discord
 		const attachment = new Discord.MessageAttachment(imageBuffer, 'dialogue.png');
 		await message.channel.send(attachment);
-		if(sheetId == null) {
-			message.channel.send(`You can also select this character sheet directly by typing: **\`§${COMMAND_NAME} [${selectedSheet.id}] text\`**`)
+		if(displayHint) {
+			message.channel.send(`Hint: You can generate this dialog directly by typing: **\`§${COMMAND_NAME} [:${sheetId}:${expressionId}] ${dialogText}\`**`)
 				.catch(error => console.error('Failed to send message.', error));
 		}
 	},
