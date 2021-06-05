@@ -1,8 +1,20 @@
 const fs = require('fs');
 const Discord = require('discord.js');
-const client = new Discord.Client();
 const redditvideo = require('./commands/passive/redditvideo.js');
-const { command_prefix, dialog_prefix } = require('./config.json');
+const {command_prefix} = require('./config.json');
+
+const intents = new Discord.Intents();
+intents.add(
+    Discord.Intents.FLAGS.GUILDS,
+    Discord.Intents.FLAGS.GUILD_MESSAGES, 
+    Discord.Intents.FLAGS.GUILD_MESSAGE_REACTIONS, 
+    Discord.Intents.FLAGS.DIRECT_MESSAGES, 
+    Discord.Intents.FLAGS.DIRECT_MESSAGE_REACTIONS);
+
+const client = new Discord.Client({ 
+    intents: intents
+ });
+ 
 client.commands = new Discord.Collection();
 
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
