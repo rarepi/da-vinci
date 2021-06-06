@@ -285,32 +285,42 @@ async function runClassPicker(initMessage) {
         ],
     });
 
+    // create a button for every servant class
+    const buttons = [];     // array of MessageActionRows - one for each servant class group
+    const iconIds = [];     // array of Integers - all servant class icon IDs
+    for(const servantClass of servantClasses) {
+        const classIconId = servantClass.dataValues.iconId;
+        const classIconEmoji = initMessage.client.emojis.resolve(servantClass.dataValues.iconId);
+        const classGroup = servantClass.dataValues.group;
+        //const className = servantClass.dataValues.name;
+        iconIds.push(classIconId);  // add id to list
+
+        if(buttons[classGroup] == null) // initialize a MessageActionRow for every servant class group (5 max)
+            buttons[classGroup] = new Discord.MessageActionRow();
+            if(buttons.length > 5)
+                throw(`Tried to build ${buttons.length} rows of buttons. Message components are limited to 5 MessageActionRows.`)
+
+        // construct Button
+        const button = new Discord.MessageButton({
+            customID: classIconId.toString(),
+            style: "SECONDARY",
+            type: "BUTTON",
+            emoji: classIconEmoji,
+        });
+        buttons[classGroup].addComponents(button); // add button to their group's row
+    }
+    
     // send servant class picker message
-    const pickerMsg = await initMessage.channel.send('Pick a class.')
+    const pickerMsg = await initMessage.channel.send('Pick a class.', {components: buttons})
         .catch(error => console.error('Failed to send message.', error));
 
-    const iconIds = [];
-    // add a reaction button for every servant class and cache all the fetched IDs for later use
-    for(const servantClass of servantClasses) {
-        const iconId = servantClass.dataValues.iconId;
-        if(!pickerMsg.deleted) {
-            await pickerMsg.react(iconId)
-                .catch(error => {
-                    if (error.code == Discord.Constants.APIErrors.UNKNOWN_MESSAGE)
-                        pass;        // Picker got deleted while adding reactions, so just cancel this forEach.
-                    console.error("Error encountered while adding reaction.", error);
-                })
-            }
-        iconIds.push(iconId);
-    }
-
     // await user's selection of class (by reaction)
-    const classesReactionsFilter = async (reaction, user) => {
-        return iconIds.includes(reaction.emoji.id) && user.id === initMessage.author.id;
+    const filter = async (interaction) => {
+        return iconIds.includes(interaction.customID) && interaction.user.id === initMessage.author.id;
     };
-    return pickerMsg.awaitReactions(classesReactionsFilter, { max: 1})
-        .then(async reactions => {
-            const selectedClass = await ServantClasses.findByPk(reactions.first().emoji.id)
+    return pickerMsg.awaitMessageComponentInteractions(filter, { max: 1})
+        .then(async interactions => {
+            const selectedClass = await ServantClasses.findByPk(interactions.first().customID)
                 .catch(error => console.error("Error encountered while comparing reaction to database.", error));
             if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
             return selectedClass
@@ -319,9 +329,6 @@ async function runClassPicker(initMessage) {
 }
 
 async function runServantPicker(initMessage, servantClass) {
-    console.log(servantClass)
-
-
     // fetch all servants of chosen class
     const servants = await Servants.findByClass(servantClass.dataValues.iconId)
         .catch(error => console.error("Error encountered while fetching servant list from database.", error));

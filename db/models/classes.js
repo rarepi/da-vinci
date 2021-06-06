@@ -13,6 +13,10 @@ module.exports = function(sequelize, DataTypes){
             allowNull: false,
             unique: true,
         },
+        group: {
+            type: Sequelize.INTEGER,
+            defaultValue: 0,
+        },
     },
     {
         timestamps: false,
