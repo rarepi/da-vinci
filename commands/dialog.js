@@ -66,7 +66,6 @@ async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=f
     };
     const pageControlCollector = listMessage.createMessageComponentInteractionCollector(listPagesFilter);
     pageControlCollector.on('collect', async (interaction) => {
-        console.log(interaction)
         if (interaction.customID === '⬆️' && page > 0) {
             page--;
         } else if (interaction.customID === '⬇️' && page < max_pages) {
@@ -110,7 +109,6 @@ function containsSpriteData(imageData) {
             return true;
         }
     }
-    console.log("No sprite data found! Data length: ", imageData.data.length)
     return false;
 }
 
