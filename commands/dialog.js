@@ -35,53 +35,64 @@ function generateItemListString(dataInstance, page, max_pages, markStatus=false)
     return listStr;
 }
 
-async function awaitIdxSelectionFromList(message, dataInstance, markStatus=false) {
+async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=false) {
+
+    const buttons = [];     // array of MessageActionRows
+    const buttonDown = "⬇️";
+    const buttonUp = "⬆️";
+
+    // construct Button
+    const buttonPageDown = new Discord.MessageButton({
+        customID: buttonDown,
+        style: "SECONDARY",
+        type: "BUTTON",
+    }).setEmoji(buttonDown);
+    const buttonPageUp = new Discord.MessageButton({
+        customID: buttonUp,
+        style: "SECONDARY",
+        type: "BUTTON",
+    }).setEmoji(buttonUp);
+    buttons[0] = new Discord.MessageActionRow();
+    buttons[0].addComponents(buttonPageDown);
+    buttons[0].addComponents(buttonPageUp);
+    
     let page = 0;
     const max_pages = Math.floor(dataInstance.length/LIST_PAGE_SIZE);
-    let listMessage = await message.channel.send(`${generateItemListString(dataInstance, page, max_pages, markStatus)}`)
+    let listMessage = await initMessage.channel.send(`${generateItemListString(dataInstance, page, max_pages, markStatus)}`, {components: buttons})
         .catch(error => console.error('Failed to send servant list message: ', error));
-        try {
-                await listMessage.react('⬇️');
-                await listMessage.react('⬆️');
-        } catch (error) {
-            if (error.code == Discord.Constants.APIErrors.UNKNOWN_MESSAGE)
-                return;        // List got deleted while adding reactions, so just cancel this.
-            console.error("Error encountered while adding reactions.", error);
-        }
 
-    const listPagesFilter = (reaction, user) => {
-        return ['⬆️', '⬇️'].includes(reaction.emoji.name) && user.id === message.author.id;
+    const listPagesFilter = (interaction) => {
+        return ['⬆️', '⬇️'].includes(interaction.customID) && interaction.user.id === initMessage.author.id;
     };
-    const pageControlCollector = listMessage.createReactionCollector(listPagesFilter);
-    pageControlCollector.on('collect', async (reaction, user) => {
-        reaction.users.remove(user)
-        if (reaction.emoji.name === '⬆️' && page > 0) {
+    const pageControlCollector = listMessage.createMessageComponentInteractionCollector(listPagesFilter);
+    pageControlCollector.on('collect', async (interaction) => {
+        console.log(interaction)
+        if (interaction.customID === '⬆️' && page > 0) {
             page--;
-        } else if (reaction.emoji.name === '⬇️' && page < max_pages) {
+        } else if (interaction.customID === '⬇️' && page < max_pages) {
             page++;
-        } else {
-            return;
         }
-        await listMessage.edit(generateItemListString(dataInstance, page, max_pages))
-            .catch(error => console.error('Failed edit message: ', error));
+        // TODO find a way to acknowledge the button interaction without updating the message if page doesn't change
+        await interaction.update(`${generateItemListString(dataInstance, page, max_pages, markStatus)}`, {components: buttons})
+            .catch(error => console.error('Failed to update message:', error));
     });
 
     const selectFilter = response => {
         response_number = response.content.replace('#', '');
         if (response_number >= dataInstance.length) {
-            message.channel.send(`Please select an ID between 0 and ${dataInstance.length-1}.`)
+            initMessage.channel.send(`Please select an ID between 0 and ${dataInstance.length-1}.`)
                 .catch(error => console.error('Failed to send message: ', error));
             return false;
         }
         if (response_number < 0) {
-            message.channel.send(`You're being way too negative.`)
+            initMessage.channel.send(`You're being way too negative.`)
                 .catch(error => console.error('Failed to send message: ', error));
             return false;
         }
-        return !isNaN(response_number) && response.author.id === message.author.id;
+        return !isNaN(response_number) && response.author.id === initMessage.author.id;
     }
 
-    return await message.channel.awaitMessages(selectFilter, { max: 1 })
+    return await initMessage.channel.awaitMessages(selectFilter, { max: 1 })
         .then(collected => {
             const itemIdx = collected.first().content.replace('#', '');
             pageControlCollector.stop();
