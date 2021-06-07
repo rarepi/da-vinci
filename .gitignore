@@ -1,6 +1,7 @@
 .eslintrc.json
 images/sprites/*
 jsconfig.json
+temp/*
 
 # Logs
 logs
