@@ -481,44 +481,44 @@ module.exports = {
         var selectedSheet;
 
         // Fetch servant if given. Let the user pick a sheet if neither servantId nor sheetId has been provided.
-        if(servantId != null){  // if servant is given, fetch it from db
+        if(servantId){  // if servant is given, fetch it from db
             selectedServant = await Servants.findByPk(servantId)
                 .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
-            if(selectedServant == null) {
+            if(!selectedServant) {
                 message.channel.send(`There is no servant with the ID ${sheetId}.`)
                     .catch(error => console.error('Failed to send message.', error));
                 return;
             }
-        } else if(sheetId == null){ // if neither servant nor sheet has been given, run the servant picking process
+        } else if(!sheetId){ // if neither servant nor sheet has been given, run the servant picking process
             selectedClass = await runClassPicker(message).catch(error => console.error('Class Picker failed.', error));
             selectedServant = await runServantPicker(message, selectedClass).catch(error => console.error('Servant Picker failed.', error));
             servantId = selectedServant.dataValues.id;
         }
 
         // Fetch sheet if given. User picks sheet if not.
-        if (sheetId != null) {  // if sheet is given, fetch it from db.
+        if (sheetId) {  // if sheet is given, fetch it from db.
             selectedSheet = await Sheets.findByPk(sheetId)
                 .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
             if(selectedSheet == null) {
                 message.channel.send(`There is no character sheet with the ID ${sheetId}.`).catch(error => console.error('Failed to send message.', error));
                 return;
             }
-            if(selectedServant == null) {   // if no servant has been decided, grab their id from the sheet and fetch their name from db.
+            if(!selectedServant) {   // if no servant has been decided, grab their id from the sheet and fetch their name from db.
                 selectedServant = await Servants.findByPk(selectedSheet.servant)
                     .catch(error => console.error("Error encountered while fetching selected servant from database.", error));
                 servantId = selectedServant.dataValues.id;
             }
 
-        } else if(selectedServant != null) {    //if servant has been decided and sheet was not given, run the sheet picking process
+        } else if(selectedServant) {    //if servant has been decided and sheet was not given, run the sheet picking process
             selectedSheet = await runSheetPicker(message, selectedServant).catch(error => console.error('Sheet Picker failed.', error));
             sheetId = selectedSheet.dataValues.id;
         }
 
-        if(selectedServant == null || selectedSheet == null) {
+        if(!selectedServant || !selectedSheet) {
             throw(`Invalid state reached. Servant is ${selectedServant}, Sheet is ${selectedSheet}.`)
         }
 
-        const servantName = selectedServant.shortName != null ? selectedServant.shortName : selectedServant.name;
+        const servantName = selectedServant.shortName ? selectedServant.shortName : selectedServant.name;
 
         var selectedExpression;
         if(selectedSheet.specialFormat == 0 && selectedSheet.eWidth > 0 && selectedSheet.eWidth > 0) {
