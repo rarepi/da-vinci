@@ -135,7 +135,7 @@ module.exports = {
         await mux.catch(error => console.error('Failed muxing.', error));;
 
         const attachment = new Discord.MessageAttachment(outPath, filename);
-        await message.reply(attachment)
+        await message.reply({files: [attachment], allowedMentions: {repliedUser: false}})
             .catch(error => console.error("Failed to upload video to Discord.", error));
     },
 }
