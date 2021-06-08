@@ -4,7 +4,7 @@ const db = require('../models.js');
 const Canvas = require('canvas');
 const {Op} = require('sequelize');
 const Path = require('path');
-const {COMMAND_PREFIX} = require('./config.json');
+const {COMMAND_PREFIX} = require('../config.json');
 
 const COMMAND_NAME = Path.basename(module.filename, Path.extname(module.filename))
 const LIST_PAGE_SIZE = 15;
