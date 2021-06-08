@@ -37,9 +37,7 @@ client.on('message', message => {
 
 // commands
 client.on('message', message => {
-    console.log("huh")
     if (!message.content.startsWith(`${COMMAND_PREFIX}`) || message.author.bot) return;
-    console.log("huh2")
 
     const args = message.content.substring(COMMAND_PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
