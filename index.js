@@ -1,7 +1,7 @@
 const fs = require('fs');
 const Discord = require('discord.js');
 const redditvideo = require('./commands/passive/redditvideo.js');
-const {command_prefix} = require('./config.json');
+const {COMMAND_PREFIX} = require('./config.json');
 
 const intents = new Discord.Intents();
 intents.add(
@@ -37,9 +37,9 @@ client.on('message', message => {
 
 // commands
 client.on('message', message => {
-    if (!message.content.startsWith(`${command_prefix}`) || message.author.bot) return;
+    if (!message.content.startsWith(`${COMMAND_PREFIX}`) || message.author.bot) return;
 
-    const args = message.content.substring(command_prefix.length).trim().split(/ +/);
+    const args = message.content.substring(COMMAND_PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
     if (!client.commands.has(command)) return;

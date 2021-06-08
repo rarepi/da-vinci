@@ -4,6 +4,7 @@ const db = require('../models.js');
 const Canvas = require('canvas');
 const {Op} = require('sequelize');
 const Path = require('path');
+const {COMMAND_PREFIX} = require('./config.json');
 
 const COMMAND_NAME = Path.basename(module.filename, Path.extname(module.filename))
 const LIST_PAGE_SIZE = 15;
@@ -560,7 +561,7 @@ module.exports = {
         const attachment = new Discord.MessageAttachment(imageBuffer, 'dialogue.png');
         await message.channel.send(attachment);
         if(displayHint) {
-            message.channel.send(`Hint: You can generate this dialog directly by typing: **\`§${COMMAND_NAME} [:${sheetId}:${expressionId}] ${dialogText}\`**`)
+            message.channel.send(`Hint: You can generate this dialog directly by typing: **\`${COMMAND_PREFIX}${COMMAND_NAME} [:${sheetId}:${expressionId}] ${dialogText}\`**`)
                 .catch(error => console.error('Failed to send message.', error));
         }
     },
