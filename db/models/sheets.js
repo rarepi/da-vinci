@@ -2,7 +2,7 @@ const Sequelize = require('sequelize');
 
 module.exports = function(sequelize, DataTypes){
     const Servants = require(`./servants.js`)(sequelize, DataTypes);
-    const sheets = sequelize.define('sheets', {
+    const Sheets = sequelize.define('sheets', {
         id: {
             type: Sequelize.INTEGER,
             primaryKey: true,
@@ -59,14 +59,6 @@ module.exports = function(sequelize, DataTypes){
             allowNull: false,
             defaultValue: 0,
         },
-        servant: {
-            type: Sequelize.INTEGER,
-            allowNull: false,
-            references: {
-                model: Servants,
-                key: 'id',
-            }
-        },
         certainty: {
             type: Sequelize.FLOAT,
             allowNull: false,
@@ -78,7 +70,15 @@ module.exports = function(sequelize, DataTypes){
         underscored: false,
     });
 
-    sheets.findSheetsForDisplay = function(servantId) {
+    Servants.hasMany(Sheets, {
+        foreignKey: {
+            name: "servantId",
+            allowNull: false,
+        }
+    });
+    Sheets.belongsTo(Servants);
+
+    Sheets.findSheetsForDisplay = function(servantId) {
         return this.findAll({
             where: {
                 servant: servantId,
@@ -98,11 +98,11 @@ module.exports = function(sequelize, DataTypes){
     }
 
     // checks if expressions have been set for this sheet.
-    sheets.prototype.hasExpressions = function() {
+    Sheets.prototype.hasExpressions = function() {
         return this.eWidth > 0 && this.eHeight > 0 && this.headX != null && this.headY != null
     }
 
-    sheets.prototype.status = function() {
+    Sheets.prototype.status = function() {
         if(typeof(this.dialogOffsetX) === 'undefined'
             || typeof(this.dialogOffsetY) === 'undefined'
             || typeof(this.certainty) === 'undefined') {
@@ -113,5 +113,5 @@ module.exports = function(sequelize, DataTypes){
             && this.certainty >= 0.99;
         }
 
-    return sheets;
+    return Sheets;
 }

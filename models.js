@@ -5,8 +5,8 @@ db = {};
 
 const sequelize = new Sequelize({
     dialect: 'sqlite',
-    //logging: console.log,
-    logging: false,
+    logging: console.log,
+    //logging: false,
     storage: './db/servants.db',
 });
 

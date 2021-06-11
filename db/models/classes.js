@@ -1,7 +1,7 @@
 const Sequelize = require('sequelize');
 
 module.exports = function(sequelize, DataTypes){
-    const classes = sequelize.define('classes', {
+    const Classes = sequelize.define('classes', {
         iconId: {
             type: Sequelize.TEXT,
             primaryKey: true,
@@ -22,5 +22,5 @@ module.exports = function(sequelize, DataTypes){
         timestamps: false,
         underscored: false,
     });
-    return classes;
+    return Classes;
 }

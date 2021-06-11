@@ -517,7 +517,7 @@ module.exports = {
         }
 
         if(!selectedServant || !selectedSheet) {
-            throw(`Invalid state reached. Servant is ${selectedServant}, Sheet is ${selectedSheet}.`)
+            throw(`Invalid state reached. Servant is ${selectedServant}, sheet is ${selectedSheet}.`)
         }
 
         const servantName = selectedServant.shortName ? selectedServant.shortName : selectedServant.name;

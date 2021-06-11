@@ -2,7 +2,8 @@ const Sequelize = require('sequelize');
 
 module.exports = function(sequelize, DataTypes){
     const ServantClasses = require(`./classes.js`)(sequelize, DataTypes);
-    const servants = sequelize.define('servants', {
+    const ServantAliases = require('./servant_aliases.js')(sequelize, DataTypes);
+    const Servants = sequelize.define('servants', {
         id: {
             type: Sequelize.INTEGER,
             primaryKey: true,
@@ -24,21 +25,26 @@ module.exports = function(sequelize, DataTypes){
             allowNull: false,
             unique: true,
         },
-        class: {
-            type: Sequelize.TEXT,
-            allowNull: false,
-            references: {
-                model: ServantClasses,
-                key: 'iconId',
-            }
-        },
     },
     {
         timestamps: false,
         underscored: false,
     });
 
-    servants.findByClass = function(classId) {
+    ServantClasses.hasMany(Servants, {
+        foreignKey: {
+            name: "classId",
+            allowNull: false,
+        }
+    });
+    Servants.belongsTo(ServantClasses, {
+        foreignKey: {
+            name: "classId",
+            allowNull: false,
+        }
+    });
+
+    Servants.findByClass = function(classId) {
         return this.findAll({
             where: {
                 class: classId
@@ -46,6 +52,39 @@ module.exports = function(sequelize, DataTypes){
         })
     }
 
-    return servants;
+    Servants.hasMany(ServantAliases, {
+        foreignKey: {
+            name: "servantId",
+        }
+    });
+    ServantAliases.belongsTo(Servants);
+
+    // finds by name or alias name
+    Servants.findByName = function(name) {
+        return this.findAll({
+            include: [{
+                model: ServantAliases,
+                required: false,
+                attributes: [],
+                where: {
+                    alias: {
+                        [Sequelize.Op.like]: `%${name}%`
+                    }
+                }
+                }],
+            where: {
+                [Sequelize.Op.or]: {
+                    name: {
+                        [Sequelize.Op.like]: `%${name}%`
+                    },
+                    "$servant_aliases.alias$": {
+                        [Sequelize.Op.like]: `%${name}%`
+                    }
+                }
+            }
+        })
+    }
+
+    return Servants;
 }
 
