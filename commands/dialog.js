@@ -305,10 +305,11 @@ async function runClassPicker(initMessage) {
         //const className = servantClass.dataValues.name;
         iconIds.push(classIconId);  // add id to list
 
-        if(buttons[classGroup] == null) // initialize a MessageActionRow for every servant class group (5 max)
+        if(!buttons[classGroup]) { // initialize a MessageActionRow for every servant class group (5 max)
             buttons[classGroup] = new Discord.MessageActionRow();
             if(buttons.length > 5)
                 throw(`Tried to build ${buttons.length} rows of buttons. Message components are limited to 5 MessageActionRows.`)
+        }
 
         // construct Button
         const button = new Discord.MessageButton({
