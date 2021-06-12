@@ -39,24 +39,27 @@ function generateItemListString(dataInstance, page, max_pages, markStatus=false)
 
 async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=false) {
 
-    const buttons = [];     // array of MessageActionRows
-    const buttonDown = "⬇️";
-    const buttonUp = "⬆️";
+    //const collectorStopReasonCancel = "CANCEL";
 
-    // construct Button
-    const buttonPageDown = new Discord.MessageButton({
-        customID: buttonDown,
-        style: "SECONDARY",
-        type: "BUTTON",
-    }).setEmoji(buttonDown);
-    const buttonPageUp = new Discord.MessageButton({
-        customID: buttonUp,
-        style: "SECONDARY",
-        type: "BUTTON",
-    }).setEmoji(buttonUp);
+    const buttons = [];     // array of MessageActionRows
+    const emojis = [];
+    const emojiDown = "⬇️";
+    const emojiUp = "⬆️";
+    const emojiCancel = "❌";
+    emojis.push(emojiDown);
+    emojis.push(emojiUp);
+    //emojis.push(emojiCancel);     // TODO
+
+    // construct Buttons and add them to the message components
     buttons[0] = new Discord.MessageActionRow();
-    buttons[0].addComponents(buttonPageDown);
-    buttons[0].addComponents(buttonPageUp);
+    for(const e of emojis) {
+        const button = new Discord.MessageButton({
+            customID: e,
+            style: "SECONDARY",
+            type: "BUTTON",
+        }).setEmoji(e);
+        buttons[0].addComponents(button);
+    }
     
     let page = 0;
     const max_pages = Math.floor(dataInstance.length/LIST_PAGE_SIZE);
@@ -64,18 +67,26 @@ async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=f
         .catch(error => console.error('Failed to send servant list message: ', error));
 
     const listPagesFilter = (interaction) => {
-        return ['⬆️', '⬇️'].includes(interaction.customID) && interaction.user.id === initMessage.author.id;
+        return emojis.includes(interaction.customID) && interaction.user.id === initMessage.author.id;
     };
     const pageControlCollector = listMessage.createMessageComponentInteractionCollector(listPagesFilter);
+
     pageControlCollector.on('collect', async (interaction) => {
-        if (interaction.customID === '⬆️' && page > 0) {
+        if (interaction.customID === emojiUp && page > 0) {
             page--;
-        } else if (interaction.customID === '⬇️' && page < max_pages) {
+        } else if (interaction.customID === emojiDown && page < max_pages) {
             page++;
-        }
+        } /*else if (interaction.customID === emojiCancel) {
+            pageControlCollector.stop(collectorStopReasonCancel);
+            return;
+        }*/
         // TODO find a way to acknowledge the button interaction without updating the message if page doesn't change
         await interaction.update(`${generateItemListString(dataInstance, page, max_pages, markStatus)}`, {components: buttons})
             .catch(error => console.error('Failed to update message:', error));
+    });
+
+    pageControlCollector.on('end', (collection, reason) => {
+        if(!listMessage.deleted) listMessage.delete().catch(console.error);
     });
 
     const selectFilter = response => {
@@ -95,10 +106,10 @@ async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=f
 
     return await initMessage.channel.awaitMessages(selectFilter, { max: 1 })
         .then(collected => {
-            const itemIdx = collected.first().content.replace('#', '');
+            const responseMessage = collected.first();
+            const itemIdx = responseMessage.content.replace('#', '');
             pageControlCollector.stop();
-            listMessage.delete();
-            collected.first().delete()
+            if(!responseMessage.deleted) responseMessage.delete().catch(console.error);
             return itemIdx;
         });
 }
@@ -506,7 +517,7 @@ module.exports = {
         // 3) Let the user pick a servant if neither servantId nor sheetId is given.
         if(servantSearchStr) {
             selectedServant = await runServantPicker(message, servantSearchStr).catch(error => console.error('Servant Picker failed.', error));
-            if(!selectedServant) return;    // search failed
+            if(!selectedServant) return;    // search returned empty or servant picker was cancelled by user
         } else if(servantId){  // if servant is given, fetch it from db
             selectedServant = await Servants.findByPk(servantId)
                 .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
@@ -518,6 +529,7 @@ module.exports = {
         } else if(!sheetId){ // if neither servant nor sheet has been given, run the servant picking process
             selectedClass = await runClassPicker(message).catch(error => console.error('Class Picker failed.', error));
             selectedServant = await runServantPicker(message, selectedClass).catch(error => console.error('Servant Picker failed.', error));
+            if(!selectedServant) return;    // servant picker was cancelled by user
             servantId = selectedServant.dataValues.id;
         }
 
