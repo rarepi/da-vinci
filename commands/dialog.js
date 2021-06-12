@@ -349,7 +349,7 @@ async function runServantPicker(initMessage, criteria) {
             if(servants.length === 0) {
                 initMessage.channel.send(
                     `There are no servants matching your search for **${criteria}**.\n`
-                    +`You can try a plain **\`${COMMAND_PREFIX}${COMMAND_NAME}**\` to search by class instead.`)
+                    +`You can try a plain **\`${COMMAND_PREFIX}${COMMAND_NAME}\`** to search by class instead.`)
                 return
             }
             pickerMsgText = `These are the servants matching your search for **${criteria}**. Pick one by posting their # in chat.`
