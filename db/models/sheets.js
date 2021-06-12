@@ -81,7 +81,7 @@ module.exports = function(sequelize, DataTypes){
     Sheets.findSheetsForDisplay = function(servantId) {
         return this.findAll({
             where: {
-                servant: servantId,
+                servantId: servantId,
                 specialFormat: {
                     // only normal body+expressions or full-body sheets are supported at the moment
                     [Sequelize.Op.or]: [0, 1]
