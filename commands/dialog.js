@@ -345,7 +345,7 @@ async function runServantPicker(initMessage, criteria) {
     var servants;
     try {
         if(typeof(criteria) === 'string') {
-            servants = await Servants.findByName(criteria);
+            servants = await Servants.findByName(criteria.replace(/ /g, "%"));
             if(servants.length === 0) {
                 initMessage.channel.send(
                     `There are no servants matching your search for **${criteria}**.\n`
