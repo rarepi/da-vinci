@@ -44,20 +44,20 @@ module.exports = function(sequelize, DataTypes){
         }
     });
 
-    Servants.findByClass = function(classId) {
-        return this.findAll({
-            where: {
-                class: classId
-            }
-        })
-    }
-
     Servants.hasMany(ServantAliases, {
         foreignKey: {
             name: "servantId",
         }
     });
     ServantAliases.belongsTo(Servants);
+
+    Servants.findByClass = function(classId) {
+        return this.findAll({
+            where: {
+                classId: classId
+            }
+        })
+    }
 
     // finds by name or alias name
     Servants.findByName = function(name) {
