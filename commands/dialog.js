@@ -5,6 +5,7 @@ const Canvas = require('canvas');
 const {Op} = require('sequelize');
 const Path = require('path');
 const {command_prefix: COMMAND_PREFIX} = require('../config.json');
+const servants = require('../db/models/servants.js');
 
 const COMMAND_NAME = Path.basename(module.filename, Path.extname(module.filename))
 const LIST_PAGE_SIZE = 15;
@@ -339,15 +340,31 @@ async function runClassPicker(initMessage) {
         .catch(error => console.error('Error encountered while collecting reaction.', error));
 }
 
-async function runServantPicker(initMessage, servantClass) {
-    // fetch all servants of chosen class
-    const servants = await Servants.findByClass(servantClass.dataValues.iconId)
-        .catch(error => console.error("Error encountered while fetching servant list from database.", error));
+async function runServantPicker(initMessage, criteria) {
+    var pickerMsgText;
+    var servants;
+    try {
+        if(typeof(criteria) === 'string') {
+            servants = await Servants.findByName(criteria);
+            if(servants.length === 0) {
+                initMessage.channel.send(
+                    `There are no servants matching your search for **${criteria}**.\n`
+                    +`You can try a plain **\`${COMMAND_PREFIX}${COMMAND_NAME}**\` to search by class instead.`)
+                return
+            }
+            pickerMsgText = `These are the servants matching your search for **${criteria}**. Pick one by posting their # in chat.`
+        } else if(typeof(criteria) === 'object') {    // assume criteria to be instance of ServantClass
+            servants = await Servants.findByClass(criteria.dataValues.iconId);
+            pickerMsgText = `Here's a list of all **${criteria.dataValues.name}** servants. Pick one by posting their # in chat.`
+        } else {
+            throw(`Illegal criteria type '${typeof(criteria)}' for servant database lookup.`)
+        }
+    } catch(error) {
+        console.error("Error encountered while fetching servant list from database.", error);
+    };
 
     // await user's selection of servant (by index)
-    const pickerMsg = await initMessage.channel.send(
-            `Here's a list of all **${servantClass.dataValues.name}** servants. Pick one by posting their # in chat.`
-        ).catch(error => console.error('Failed to send message.', error));
+    const pickerMsg = await initMessage.channel.send(pickerMsgText).catch(error => console.error('Failed to send message.', error));
 
     return await awaitIdxSelectionFromList(initMessage, servants)
         .then(idx => {
@@ -432,6 +449,7 @@ module.exports = {
     name: COMMAND_NAME,
     description: 'Builds a dialog screen as seen in Fate/Grand Order.',
     async execute(message, args) {
+        var servantSearchStr;
         var servantId;
         var sheetId;
         var expressionId;
@@ -451,7 +469,8 @@ module.exports = {
         if(args.length < 1) {   // pick servant, sheet, expression id and input text
             displayHint = true; // if user supplied no IDs, inform them about the argument syntax after he's done.
         } else if (ARG_CASE.SERVANT_NAME.test(args[0])) {                       // search servant name and pick sheet, expression id and input text
-            return; // TODO not yet implemented
+            servantSearchStr = args.join(' ');
+            args = [];
         } else if (ARG_CASE.SERVANT.test(args[0])) {                            // pick sheet, expression id and input text
             const match = await args.shift().match(/\[(\d+)\]/);
             servantId = parseInt(match[1]);
@@ -476,14 +495,19 @@ module.exports = {
                 .catch(error => console.error('Failed to send message.', error));
             return;
         }
-        dialogText = args.join(' ');    // if any arguments follow, it's (supposed to be) the dialog text.
+        dialogText = args?.join(' ');    // if any arguments follow, it's (supposed to be) the dialog text.
 
         var selectedClass;
         var selectedServant;
         var selectedSheet;
 
-        // Fetch servant if given. Let the user pick a sheet if neither servantId nor sheetId has been provided.
-        if(servantId){  // if servant is given, fetch it from db
+        // 1) Search servant based on given search string if given. User picks from search results.
+        // 2) Fetch servant if given.
+        // 3) Let the user pick a servant if neither servantId nor sheetId is given.
+        if(servantSearchStr) {
+            selectedServant = await runServantPicker(message, servantSearchStr).catch(error => console.error('Servant Picker failed.', error));
+            if(!selectedServant) return;    // search failed
+        } else if(servantId){  // if servant is given, fetch it from db
             selectedServant = await Servants.findByPk(servantId)
                 .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
             if(!selectedServant) {
