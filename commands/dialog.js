@@ -15,6 +15,11 @@ const ServantClasses = db["classes"];
 const Servants = db["servants"];
 const Sheets = db["sheets"];
 
+function matchesCurrentCommand(str) {
+    console.log(typeof str)
+    return str.startsWith(`${COMMAND_PREFIX}${COMMAND_NAME}`);
+}
+
 // returns a message listing the items of modelArray seperated into pages. modelArray must have a name field.
 function generateItemListString(dataInstance, page, max_pages, markStatus=false) {
     let listStr = "```";
@@ -90,6 +95,9 @@ async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=f
     });
 
     const selectFilter = response => {
+        if(matchesCurrentCommand(response.content)) {
+            return true
+        }
         response_number = response.content.replace('#', '');
         if (response_number >= dataInstance.length) {
             initMessage.channel.send(`Please select an ID between 0 and ${dataInstance.length-1}.`)
@@ -106,11 +114,15 @@ async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=f
 
     return await initMessage.channel.awaitMessages(selectFilter, { max: 1 })
         .then(collected => {
-            const responseMessage = collected.first();
-            const itemIdx = responseMessage.content.replace('#', '');
             pageControlCollector.stop();
-            if(!responseMessage.deleted) responseMessage.delete().catch(console.error);
-            return itemIdx;
+            const responseMessage = collected.first();
+            if(matchesCurrentCommand(responseMessage.content)) {
+                return null;
+            } else {
+                const itemIdx = responseMessage.content.replace('#', '');
+                if(!responseMessage.deleted) responseMessage.delete().catch(console.error);
+                return itemIdx;
+            }
         });
 }
 
@@ -401,7 +413,7 @@ async function runSheetPicker(initMessage, servant) {
         }).catch(error => console.error('Error encountered while collecting sheet selection.', error));
 
     // fetch selected sheet
-    return await Sheets.findByPk(sheets[sheetIdx].dataValues.id)
+    return await Sheets.findByPk(sheets[sheetIdx]?.dataValues.id)
         .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
 }
 
@@ -482,6 +494,7 @@ module.exports = {
         } else if (ARG_CASE.SERVANT_NAME.test(args[0])) {                       // search servant name and pick sheet, expression id and input text
             servantSearchStr = args.join(' ');
             args = [];
+            displayHint = true;
         } else if (ARG_CASE.SERVANT.test(args[0])) {                            // pick sheet, expression id and input text
             const match = await args.shift().match(/\[(\d+)\]/);
             servantId = parseInt(match[1]);
@@ -517,7 +530,7 @@ module.exports = {
         // 3) Let the user pick a servant if neither servantId nor sheetId is given.
         if(servantSearchStr) {
             selectedServant = await runServantPicker(message, servantSearchStr).catch(error => console.error('Servant Picker failed.', error));
-            if(!selectedServant) return;    // search returned empty or servant picker was cancelled by user
+            if(!selectedServant) return;    // search returned empty or servant picker was cancelled
         } else if(servantId){  // if servant is given, fetch it from db
             selectedServant = await Servants.findByPk(servantId)
                 .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
@@ -542,13 +555,13 @@ module.exports = {
                 return;
             }
             if(!selectedServant) {   // if no servant has been decided, grab their id from the sheet and fetch their name from db.
-                selectedServant = await Servants.findByPk(selectedSheet.servant)
+                selectedServant = await Servants.findByPk(selectedSheet.dataValues.servantId)
                     .catch(error => console.error("Error encountered while fetching selected servant from database.", error));
                 servantId = selectedServant.dataValues.id;
             }
-
         } else if(selectedServant) {    //if servant has been decided and sheet was not given, run the sheet picking process
             selectedSheet = await runSheetPicker(message, selectedServant).catch(error => console.error('Sheet Picker failed.', error));
+            if(!selectedSheet) return;    // sheet picker was cancelled
             sheetId = selectedSheet.dataValues.id;
         }
 
