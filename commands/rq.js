@@ -3,7 +3,7 @@ const Discord = require('discord.js');
 const dialogues = [];
 
 const parseDialogues = async () => {
-    const rgx =  /title="NA">\s*<p>\s*(.+)<\/p>[\s\S]+?<span class="ogg_custom">.+<source src="(.+\.ogg)/gu;
+    const rgx =  /<span class="ogg_custom">.+<source src="(.+\.ogg)/gu;
     const html = (await axios.get('https://fategrandorder.fandom.com/wiki/Sub:Leonardo_Da_Vinci/Dialogue')).data;
     let match = rgx.exec(html);
     do {
