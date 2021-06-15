@@ -1,15 +1,11 @@
-const axios = require('axios');
 const Discord = require('discord.js');
 const db = require('../models.js');
 const Canvas = require('canvas');
-const {Op} = require('sequelize');
 const Path = require('path');
 const {command_prefix: COMMAND_PREFIX} = require('../config.json');
-const servants = require('../db/models/servants.js');
 
 const COMMAND_NAME = Path.basename(module.filename, Path.extname(module.filename))
 const LIST_PAGE_SIZE = 15;
-const URL_FANDOM = "https://fategrandorder.fandom.com";
 
 const ServantClasses = db["classes"];
 const Servants = db["servants"];
