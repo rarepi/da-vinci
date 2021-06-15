@@ -11,9 +11,8 @@ const ServantClasses = db["classes"];
 const Servants = db["servants"];
 const Sheets = db["sheets"];
 
-// returns true if the given string matches this file's command name
+// returns true if the given string matches this file's command
 function matchesCurrentCommand(str) {
-    console.log(typeof str)
     return str.startsWith(`${COMMAND_PREFIX}${COMMAND_NAME}`);
 }
 
@@ -57,10 +56,8 @@ async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=f
     const emojis = [];
     const emojiDown = "⬇️";
     const emojiUp = "⬆️";
-    const emojiCancel = "❌";
     emojis.push(emojiDown);
     emojis.push(emojiUp);
-    //emojis.push(emojiCancel);     // TODO
 
     // construct Buttons and add them to the message components
     buttons[0] = new Discord.MessageActionRow();
@@ -99,9 +96,6 @@ async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=f
     });
 
     const selectFilter = response => {
-        if(matchesCurrentCommand(response.content)) {
-            return true
-        }
         response_number = response.content.replace('#', '');
         if (response_number >= dataInstance.length) {
             initMessage.channel.send(`Please select an ID between 0 and ${dataInstance.length-1}.`)
