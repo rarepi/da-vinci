@@ -20,31 +20,40 @@ function matchesCurrentCommand(str) {
     return str.startsWith(`${COMMAND_PREFIX}${COMMAND_NAME}`);
 }
 
-// returns a message listing the items of modelArray seperated into pages. modelArray must have a name field.
-function generateItemListString(dataInstance, page, max_pages, markStatus=false) {
-    let listStr = "```";
-    if(page > 0) {
-        listStr += `... \n`
-    }
-    for (let i = LIST_PAGE_SIZE*page ; i < LIST_PAGE_SIZE+LIST_PAGE_SIZE*page
-        && i < dataInstance.length ; i++) {
-        listStr += `[#${i}] ${dataInstance[i].dataValues.name}`;
-        //if(markStatus && !dataInstance[i].status() === false) {
-        if(markStatus && !dataInstance[i].status()) {
-            listStr += " (*)";
+// returns true if image data contains any pixeldata we define as relevant (defined as pixels with < 50% transparency)
+function containsSpriteData(imageData) {
+    for(let i = 3; i < imageData.data.length; i += 4) {
+        // some expression sheets have random semi-transparent artifacts in empty slots, so we can't just use an alpha of 0 as our condition.
+        if(imageData.data[i] > 127) {
+            return true;
         }
-        listStr += "\n";
     }
-    if (page < max_pages) {
-        listStr += `...`
-    }
-    listStr += "```";
-    return listStr;
+    return false;
 }
 
 async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=false) {
 
-    //const collectorStopReasonCancel = "CANCEL";
+    // returns a message listing the items of modelArray seperated into pages. modelArray must have a name field.
+    function generateItemListString(dataInstance, page, max_pages, markStatus=false) {
+        let listStr = "```";
+        if(page > 0) {
+            listStr += `... \n`
+        }
+        for (let i = LIST_PAGE_SIZE*page ; i < LIST_PAGE_SIZE+LIST_PAGE_SIZE*page
+            && i < dataInstance.length ; i++) {
+            listStr += `[#${i}] ${dataInstance[i].dataValues.name}`;
+            //if(markStatus && !dataInstance[i].status() === false) {
+            if(markStatus && !dataInstance[i].status()) {
+                listStr += " (*)";
+            }
+            listStr += "\n";
+        }
+        if (page < max_pages) {
+            listStr += `...`
+        }
+        listStr += "```";
+        return listStr;
+    }
 
     const buttons = [];     // array of MessageActionRows
     const emojis = [];
@@ -81,10 +90,7 @@ async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=f
             page--;
         } else if (interaction.customID === emojiDown && page < max_pages) {
             page++;
-        } /*else if (interaction.customID === emojiCancel) {
-            pageControlCollector.stop(collectorStopReasonCancel);
-            return;
-        }*/
+        }
         // TODO find a way to acknowledge the button interaction without updating the message if page doesn't change
         await interaction.update(`${generateItemListString(dataInstance, page, max_pages, markStatus)}`, {components: buttons})
             .catch(error => console.error('Failed to update message:', error));
@@ -124,17 +130,6 @@ async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=f
                 return itemIdx;
             }
         });
-}
-
-// returns true if image data contains any pixeldata we define as relevant (defined as pixels with < 50% transparency)
-function containsSpriteData(imageData) {
-    for(let i = 3; i < imageData.data.length; i += 4) {
-        // some expression sheets have random semi-transparent artifacts in empty slots, so we can't just use an alpha of 0 as our condition.
-        if(imageData.data[i] > 127) {
-            return true;
-        }
-    }
-    return false;
 }
 
 function calculateExpressionSheetDimensions(sheetWidth, sheetHeight, bodyHeight, eWidth, eHeight) {
