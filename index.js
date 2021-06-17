@@ -1,6 +1,7 @@
 const fs = require('fs');
 const Discord = require('discord.js');
 const redditvideo = require('./commands/passive/redditvideo.js');
+const steamurl = require('./commands/passive/steamurl.js');
 const {command_prefix: COMMAND_PREFIX} = require('./config.json');
 
 const intents = new Discord.Intents();
@@ -51,14 +52,6 @@ client.on('message', message => {
     }
 });
 
-
-// https://www.reddit.com/r/gtaonline/comments/nm6x3z/i_jumped_in_between_two_helicopters/
-// get https://www.reddit.com/r/gtaonline/comments/nm6x3z/i_jumped_in_between_two_helicopters/.json
-// grab fallback_url from json => https://v.redd.it/wh56h6s8vn171/DASH_480.mp4
-// grab audio by replacing resolution with "audio" => https://v.redd.it/wh56h6s8vn171/DASH_audio.mp4
-// mux together
-// upload
-
 // reddit video uploader
 client.on('message', message => {
     const REDDIT_URL_RGX = /^[^\r\n]*(https?:\/\/(?:www\.)?reddit\.com\/r\/\w+?\/(?:comments\/)?\w+\/?)[^\r\n]*$/gm
@@ -68,6 +61,18 @@ client.on('message', message => {
         let reddit_url = match[1];
         console.log(`Reddit link detected: ${reddit_url}`);
         redditvideo.execute(message, reddit_url);
+    } else return;
+});
+
+// posts URLs of steam websites as "steam://"" URLs for easy access
+client.on('message', message => {
+    const STEAM_URL_RGX = /^(?:[^\r\n]+ )*<?((?:https?:\/\/)?(?:\w+\.)*steam(?:powered|community).com\/?\S*?)>?(?: [^\r\n]+)*$/gm
+    if (message.author.bot) return;
+    const match = STEAM_URL_RGX.exec(message.content);
+    if(match) {
+        let steam_url = match[1];
+        console.log(`Steam link detected: ${steam_url}`);
+        steamurl.execute(message, steam_url);
     } else return;
 });
 

@@ -2,7 +2,7 @@ const Discord = require('discord.js');
 const Axios = require('axios');
 const Fs = require('fs');
 const Path = require('path');
-const db = require('../models.js')
+const db = require('../models.js');
 
 const URL_FANDOM = "https://fategrandorder.fandom.com";
 const sClasses = new Map([
