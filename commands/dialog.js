@@ -3,6 +3,7 @@ const db = require('../models.js');
 const Canvas = require('canvas');
 const Path = require('path');
 const {command_prefix: COMMAND_PREFIX} = require('../config.json');
+const {CommandCancellationError} = require('../exceptions/CommandCancellationError.js');
 
 const COMMAND_NAME = Path.basename(module.filename, Path.extname(module.filename))
 const LIST_PAGE_SIZE = 15;
@@ -184,56 +185,72 @@ async function buildIndexedExpressionSheet(path, bodyWidth, bodyHeight, eWidth, 
 }
 
 // prompts the user to choose the servant class of his FGO servant
-async function runClassPicker(initMessage) {
-    // fetch all servant class IDs from db. Each one equals a respective FGO class icon emoji ID for Discord.
-    const servantClasses = await ServantClasses.findAll({
-        order: [
-            ['iconId', 'ASC']
-        ],
-    });
+function runClassPicker(initMessage) {
+    return new Promise(async (resolve, reject) => {
+        const cancelFilter = async (message) => {
+            return matchesCurrentCommand(message.content) && message.author.id === initMessage.author.id;
+        };
+        const collector = initMessage.channel.createMessageCollector(cancelFilter);
 
-    // create a button for every servant class
-    const buttons = [];     // array of MessageActionRows - one for each servant class group
-    const iconIds = [];     // array of Integers - all servant class icon IDs
-    for(const servantClass of servantClasses) {
-        const classIconId = servantClass.dataValues.iconId;
-        const classIconEmoji = initMessage.client.emojis.resolve(servantClass.dataValues.iconId);
-        const classGroup = servantClass.dataValues.group;
-        //const className = servantClass.dataValues.name;
-        iconIds.push(classIconId);  // add id to list
-
-        if(!buttons[classGroup]) { // initialize a MessageActionRow for every servant class group (5 max)
-            buttons[classGroup] = new Discord.MessageActionRow();
-            if(buttons.length > 5)
-                throw(`Tried to build ${buttons.length} rows of buttons. Message components are limited to 5 MessageActionRows.`)
-        }
-
-        // construct Button
-        const button = new Discord.MessageButton({
-            customID: classIconId.toString(),
-            style: "SECONDARY",
-            type: "BUTTON",
-            emoji: classIconEmoji,
+        collector.on('collect', m => {
+            collector.stop(-1);
         });
-        buttons[classGroup].addComponents(button); // add button to their group's row
-    }
-    
-    // send servant class picker message
-    const pickerMsg = await initMessage.channel.send('Pick a class.', {components: buttons})
-        .catch(error => console.error('Failed to send message.', error));
 
-    // await user's selection of class (by reaction)
-    const filter = async (interaction) => {
-        return iconIds.includes(interaction.customID) && interaction.user.id === initMessage.author.id;
-    };
-    return pickerMsg.awaitMessageComponentInteractions(filter, { max: 1})
+        collector.once('end', (collected, reason) => {
+            if(!pickerMsg?.deleted) pickerMsg?.delete().catch(console.error);
+            if(reason === -1) reject(new CommandCancellationError("Cancelled by reexecution."));
+        });
+
+        // fetch all servant class IDs from db. Each one equals a respective FGO class icon emoji ID for Discord.
+        const servantClasses = await ServantClasses.findAll({
+            order: [
+                ['iconId', 'ASC']
+            ],
+        });
+
+        // create a button for every servant class
+        const buttons = [];     // array of MessageActionRows - one for each servant class group
+        const iconIds = [];     // array of Integers - all servant class icon IDs
+        for(const servantClass of servantClasses) {
+            const classIconId = servantClass.dataValues.iconId;
+            const classIconEmoji = initMessage.client.emojis.resolve(servantClass.dataValues.iconId);
+            const classGroup = servantClass.dataValues.group;
+            //const className = servantClass.dataValues.name;
+            iconIds.push(classIconId);  // add id to list
+
+            if(!buttons[classGroup]) { // initialize a MessageActionRow for every servant class group (5 max)
+                buttons[classGroup] = new Discord.MessageActionRow();
+                if(buttons.length > 5)
+                    throw(`Tried to build ${buttons.length} rows of buttons. Message components are limited to 5 MessageActionRows.`)
+            }
+
+            // construct Button
+            const button = new Discord.MessageButton({
+                customID: classIconId.toString(),
+                style: "SECONDARY",
+                type: "BUTTON",
+                emoji: classIconEmoji,
+            });
+            buttons[classGroup].addComponents(button); // add button to their group's row
+        }
+        
+        // send servant class picker message
+        const pickerMsg = await initMessage.channel.send('Pick a class.', {components: buttons})
+            .catch(error => console.error('Failed to send message.', error));
+
+        // await user's selection of class (by reaction)
+        const filter = async (interaction) => {
+            return iconIds.includes(interaction.customID) && interaction.user.id === initMessage.author.id;
+        };
+        pickerMsg.awaitMessageComponentInteractions(filter, { max: 1})
         .then(async interactions => {
+            if(interactions.size <= 0) return;  // reached in case of a deleted picker message
             const selectedClass = await ServantClasses.findByPk(interactions.first().customID)
                 .catch(error => console.error("Error encountered while comparing reaction to database.", error));
             if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
-            return selectedClass
-        })
-        .catch(error => console.error('Error encountered while collecting reaction.', error));
+            resolve(selectedClass);
+        }).catch(error => console.error('Error encountered while collecting reaction.', error));
+    });
 }
 
 // prompts the user to choose his FGO servant
@@ -537,7 +554,15 @@ module.exports = {
                 return;
             }
         } else if(!sheetId){ // if neither servant nor sheet has been given, run the servant picking process
-            selectedClass = await runClassPicker(message).catch(error => console.error('Class Picker failed.', error));
+            selectedClass = await runClassPicker(message)
+                .catch(error => {
+                    if(error instanceof CommandCancellationError) {
+                        return null;
+                    } else {
+                        console.error('Class Picker failed.', error);
+                    };
+                });
+            if(!selectedClass) return;
             selectedServant = await runServantPicker(message, selectedClass).catch(error => console.error('Servant Picker failed.', error));
             if(!selectedServant) return;    // servant picker was cancelled by user
             servantId = selectedServant.dataValues.id;
