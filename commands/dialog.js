@@ -190,15 +190,15 @@ function runClassPicker(initMessage) {
         const cancelFilter = async (message) => {
             return matchesCurrentCommand(message.content) && message.author.id === initMessage.author.id;
         };
-        const collector = initMessage.channel.createMessageCollector(cancelFilter);
+        const reexecutionCollector = initMessage.channel.createMessageCollector(cancelFilter);
 
-        collector.on('collect', m => {
-            collector.stop(-1);
+        reexecutionCollector.on('collect', m => {
+            reexecutionCollector.stop();
+            reject(new CommandCancellationError("Cancelled by reexecution."));
         });
 
-        collector.once('end', (collected, reason) => {
+        reexecutionCollector.once('end', (collected, reason) => {
             if(!pickerMsg?.deleted) pickerMsg?.delete().catch(console.error);
-            if(reason === -1) reject(new CommandCancellationError("Cancelled by reexecution."));
         });
 
         // fetch all servant class IDs from db. Each one equals a respective FGO class icon emoji ID for Discord.
@@ -248,6 +248,7 @@ function runClassPicker(initMessage) {
             const selectedClass = await ServantClasses.findByPk(interactions.first().customID)
                 .catch(error => console.error("Error encountered while comparing reaction to database.", error));
             if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
+            reexecutionCollector.stop();
             resolve(selectedClass);
         }).catch(error => console.error('Error encountered while collecting reaction.', error));
     });
