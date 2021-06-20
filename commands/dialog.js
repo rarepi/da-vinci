@@ -101,7 +101,7 @@ class dialog{
         this.sheet;
         this.expression;
 
-        this.reject;
+        this.rejects = [];
 
         const cancelFilter = (message) => {
             return matchesCurrentCommand(message.content) && message.author.id === initMessage.author.id;
@@ -110,7 +110,9 @@ class dialog{
 
         reexecutionCollector.on('collect', m => {
             reexecutionCollector.stop();
-            this.reject(new CommandCancellationError("Cancelled by reexecution."));
+            while(this.rejects.length > 0) {
+                this.rejects.pop()(new CommandCancellationError("Cancelled by reexecution."));
+            }
         });
 
         reexecutionCollector.once('end', (collected, reason) => {
@@ -121,7 +123,7 @@ class dialog{
     // does nothing if no servant search or servantId is provided, but a sheetId is. In that case the sheetId must provide the correct servant via runSheetSetter().
     async runServantSetter() {
         if(this.servantSearchStr) {
-            await this.promptServantBySearchResults()
+            this.servant = await this.promptServantBySearchResults()
                 .catch(error => {
                     console.error('Failed to prompt for Servant.', error);
                     return error;
@@ -138,7 +140,7 @@ class dialog{
                     .catch(error => console.error('Failed to send message.', error));
             }
         } else if(!this.sheetId) { // if neither servant nor sheet has been given, run the servant picking process
-            await this.promptClass()
+            this.class = await this.promptClass()
                 .catch(error => {
                     console.error('Class picker failed.', error);
                     return error;
@@ -146,7 +148,7 @@ class dialog{
             if(!this.class || this.class instanceof Error) {
                 throw new IllegalStateError(`Invalid state reached. Servant class is ${this.class}.`)
             };
-            await this.promptServantByClass()
+            this.servant = await this.promptServantByClass()
                 .catch(error => {
                     console.error('Failed to prompt for Servant.', error);
                     return error;
@@ -171,7 +173,7 @@ class dialog{
                 this.servantId = this.servant.dataValues.id;
             }
         } else if(this.servant) {    //if servant has been decided and sheet was not given, run the sheet picking process
-            await this.promptSheet().catch(error => console.error('Sheet Picker failed.', error));
+            this.sheet = await this.promptSheet().catch(error => console.error('Sheet Picker failed.', error));
             if(!this.sheet) return;    // sheet picker was cancelled
             this.sheetId = this.sheet.dataValues.id;
         }
@@ -193,7 +195,7 @@ class dialog{
             if(this.expressionId === 0) {
                 this.expression = null   // use default expression
             } else if(!this.expressionId) {
-                await this.promptExpression(indexedExpressionSheet)
+                [this.expression, this.expressionId] = await this.promptExpression(indexedExpressionSheet)
                     .catch(error => console.error('Error encountered while collecting expression selection.', error));
             } else {
                 if(this.expressionId <= indexedExpressionSheet.expressions.length) {
@@ -209,7 +211,7 @@ class dialog{
 
     async runTextSetter() {
         if(this.text == null || this.text.length <= 0) {
-            await this.promptText(this.initMessage)
+            this.text = await this.promptText(this.initMessage)
                 .catch(error => console.error('Error encountered while collecting dialog text input.', error));
         }
     }
@@ -217,7 +219,7 @@ class dialog{
     // prompts the user to choose the servant class of his FGO servant
     promptClass() {
         return new Promise(async (resolve, reject) => {
-            this.reject = reject;
+            this.rejects.push(reject);
 
             // fetch all servant class IDs from db. Each one equals a respective FGO class icon emoji ID for Discord.
             const servantClasses = await ServantClasses.findAll({
@@ -263,10 +265,11 @@ class dialog{
             pickerMsg.awaitMessageComponentInteractions(filter, { max: 1})
             .then(async interactions => {
                 if(interactions.size <= 0) return;  // reached in case of a deleted picker message
-                this.class = await ServantClasses.findByPk(interactions.first().customID)
+                const result = await ServantClasses.findByPk(interactions.first().customID)
                     .catch(error => console.error("Error encountered while comparing reaction to database.", error));
                 if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
-                resolve();
+                this.rejects.pop();
+                resolve(result);
             }).catch(error => console.error('Error encountered while collecting reaction.', error));
         });
     }
@@ -274,7 +277,7 @@ class dialog{
     // prompts the user to choose his FGO servant
     promptServantBySearchResults() {
         return new Promise(async (resolve, reject) => {
-            this.reject = reject;
+            this.rejects.push(reject);
 
             const servants = await Servants.findByName(this.servantSearchStr.replace(/ /g, "%"));
             if(servants.length === 0) {
@@ -288,38 +291,41 @@ class dialog{
             // await user's selection of servant (by index)
             const pickerMsg = await this.initMessage.channel.send(pickerMsgText).catch(error => console.error('Failed to send message.', error));
 
-            this.servant = await this.awaitIdxSelectionFromList(servants)
+            const result = await this.awaitIdxSelectionFromList(servants)
                 .then(idx => {
                     if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
                     return servants[idx];
             }).catch(error => console.error('Error encountered while collecting servant selection.', error));;
-            resolve();
+            this.rejects.pop();
+            resolve(result);
         });
     }
 
     // prompts the user to choose his FGO servant
     promptServantByClass() {
         return new Promise(async (resolve, reject) => {
-            this.reject = reject;
+            this.rejects.push(reject);
 
             const servants = await Servants.findByClass(this.class.dataValues.iconId);
             const pickerMsgText = `Here's a list of all **${this.class.dataValues.name}** servants. Pick one by posting their # in chat.`
 
             // await user's selection of servant (by index)
             const pickerMsg = await this.initMessage.channel.send(pickerMsgText).catch(error => console.error('Failed to send message.', error));
-            this.servant = await this.awaitIdxSelectionFromList(servants)
+            const result = await this.awaitIdxSelectionFromList(servants)
                 .then(idx => {
                     if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
                     return servants[idx];
-            }).catch(error => console.error('Error encountered while collecting servant selection.', error));;
-            resolve();
+            }).catch(error => console.error('Error encountered while collecting servant selection.', error));
+
+            this.rejects.pop();
+            resolve(result);
         });
     }
 
     // prompts the user to choose his servant's character sheet
     promptSheet() {
         return new Promise(async (resolve, reject) => {
-            this.reject = reject;
+            this.rejects.push(reject);
 
             // fetch relevant data for displaying all supported character sheets of chosen servant
             const sheets = await Sheets.findSheetsForDisplay(this.servant.dataValues.id)
@@ -337,16 +343,17 @@ class dialog{
                 }).catch(error => console.error('Error encountered while collecting sheet selection.', error));
 
             // fetch selected sheet
-            this.sheet = await Sheets.findByPk(sheets[sheetIdx]?.dataValues.id)
+            const result = await Sheets.findByPk(sheets[sheetIdx]?.dataValues.id)
                 .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
-            resolve();
+            this.rejects.pop();
+            resolve(result);
         });
     }
 
     // prompts the user to choose an expression from his servant's character sheet
     promptExpression(indexedExpressionSheet) {
         return new Promise(async (resolve, reject) => {
-            this.reject = reject;
+            this.rejects.push(reject);
 
             const expressionSheetImage = new Discord.MessageAttachment(indexedExpressionSheet.expressionSheet, 'expressions.png');
             const expressionSelectionPrompt = await this.initMessage.channel.send(
@@ -369,7 +376,7 @@ class dialog{
                 return !isNaN(response_number) && response.author.id === this.initMessage.author.id;
             }
 
-            [this.expression, this.expressionId] = await this.initMessage.channel.awaitMessages(selectFilter, { max: 1 })
+            const result = await this.initMessage.channel.awaitMessages(selectFilter, { max: 1 })
                 .then(collected => {
                     const itemIdx = collected.first().content.replace('#', '');
                     if(itemIdx === 0) {
@@ -379,14 +386,15 @@ class dialog{
                     if(!expressionSelectionPrompt.deleted) expressionSelectionPrompt.delete().catch(console.error);
                     return [indexedExpressionSheet.expressions[itemIdx-1], itemIdx];
                 });
-            resolve();
+            this.rejects.pop();
+            resolve(result);
         });
     }
 
     // prompts the user to input the text to be displayed in his character dialog box
     promptText() {
         return new Promise(async (resolve, reject) => {
-            this.reject = reject;
+            this.rejects.push(reject);
 
             const textInputPrompt = await this.initMessage.channel.send(`Input the dialog text for your generated image.`)
                 .catch(error => console.error('Failed to send message.', error));
@@ -394,7 +402,7 @@ class dialog{
             const selectFilter = response => {
                 return response.author.id === this.initMessage.author.id;
             }
-            this.text =  await this.initMessage.channel.awaitMessages(selectFilter, { max: 1 })
+            const result = await this.initMessage.channel.awaitMessages(selectFilter, { max: 1 })
                 .then(collected => {
                     const inputMsg = collected.first();
                     const input = inputMsg.content;
@@ -402,14 +410,15 @@ class dialog{
                     if(!textInputPrompt.deleted) textInputPrompt.delete().catch(console.error);
                     return input;
                 });
-            resolve();
+            this.rejects.pop();
+            resolve(result);
         });
     }
 
     // constructs the final FGO character dialog image
     buildCharacterDialog() {
         return new Promise(async (resolve, reject) => {
-            this.reject = reject;
+            this.rejects.push(reject);
 
             // fixate all needed attributes (& shorter variable names for readability)
             const path = this.sheet.path;
@@ -538,6 +547,7 @@ class dialog{
 
             context.drawImage(canvas_dbox, 0, 0);
 
+            this.rejects.pop();
             resolve(canvas.toBuffer());
         })
     }
@@ -545,7 +555,7 @@ class dialog{
     // awaits text input from user representing an index in a output indexed item list
     awaitIdxSelectionFromList(dataInstance, markStatus=false) {
         return new Promise(async (resolve, reject) => {
-            this.reject = reject;
+            this.rejects.push(reject);
             // returns a message listing the items of modelArray seperated into pages. modelArray must have a name field.
             function generateItemListString(dataInstance, page, max_pages, markStatus=false) {
                 let listStr = "```";
@@ -632,6 +642,7 @@ class dialog{
                     const responseMessage = collected.first();
                     const itemIdx = responseMessage.content.replace('#', '');
                     if(!responseMessage.deleted) responseMessage.delete().catch(console.error);
+                    this.rejects.pop();
                     resolve(itemIdx);
                 });
         })
