@@ -3,7 +3,7 @@ const db = require('../models.js');
 const Canvas = require('canvas');
 const Path = require('path');
 const {command_prefix: COMMAND_PREFIX} = require('../config.json');
-const {CommandCancellationError} = require('../exceptions/CommandCancellationError.js');
+const {CommandCancellationError, IllegalStateError} = require('../errors/Errors.js');
 
 const COMMAND_NAME = Path.basename(module.filename, Path.extname(module.filename))
 const LIST_PAGE_SIZE = 15;
@@ -26,103 +26,6 @@ function containsSpriteData(imageData) {
         }
     }
     return false;
-}
-
-// awaits text input from user representing an index in a output indexed item list
-async function awaitIdxSelectionFromList(initMessage, dataInstance, markStatus=false) {
-
-    // returns a message listing the items of modelArray seperated into pages. modelArray must have a name field.
-    function generateItemListString(dataInstance, page, max_pages, markStatus=false) {
-        let listStr = "```";
-        if(page > 0) {
-            listStr += `... \n`
-        }
-        for (let i = LIST_PAGE_SIZE*page ; i < LIST_PAGE_SIZE+LIST_PAGE_SIZE*page
-            && i < dataInstance.length ; i++) {
-            listStr += `[#${i}] ${dataInstance[i].dataValues.name}`;
-            //if(markStatus && !dataInstance[i].status() === false) {
-            if(markStatus && !dataInstance[i].status()) {
-                listStr += " (*)";
-            }
-            listStr += "\n";
-        }
-        if (page < max_pages) {
-            listStr += `...`
-        }
-        listStr += "```";
-        return listStr;
-    }
-
-    const buttons = [];     // array of MessageActionRows
-    const emojis = [];
-    const emojiDown = "⬇️";
-    const emojiUp = "⬆️";
-    emojis.push(emojiDown);
-    emojis.push(emojiUp);
-
-    // construct Buttons and add them to the message components
-    buttons[0] = new Discord.MessageActionRow();
-    for(const e of emojis) {
-        const button = new Discord.MessageButton({
-            customID: e,
-            style: "SECONDARY",
-            type: "BUTTON",
-        }).setEmoji(e);
-        buttons[0].addComponents(button);
-    }
-    
-    let page = 0;
-    const max_pages = Math.floor(dataInstance.length/LIST_PAGE_SIZE);
-    let listMessage = await initMessage.channel.send(`${generateItemListString(dataInstance, page, max_pages, markStatus)}`, {components: buttons})
-        .catch(error => console.error('Failed to send servant list message: ', error));
-
-    const listPagesFilter = (interaction) => {
-        return emojis.includes(interaction.customID) && interaction.user.id === initMessage.author.id;
-    };
-    const pageControlCollector = listMessage.createMessageComponentInteractionCollector(listPagesFilter);
-
-    pageControlCollector.on('collect', async (interaction) => {
-        if (interaction.customID === emojiUp && page > 0) {
-            page--;
-        } else if (interaction.customID === emojiDown && page < max_pages) {
-            page++;
-        }
-        // TODO find a way to acknowledge the button interaction without updating the message if page doesn't change
-        await interaction.update(`${generateItemListString(dataInstance, page, max_pages, markStatus)}`, {components: buttons})
-            .catch(error => console.error('Failed to update message:', error));
-    });
-
-    pageControlCollector.on('end', (collection, reason) => {
-        if(!listMessage.deleted) listMessage.delete().catch(console.error);
-    });
-
-    const selectFilter = response => {
-        response_number = response.content.replace('#', '');
-        if (response_number >= dataInstance.length) {
-            initMessage.channel.send(`Please select an ID between 0 and ${dataInstance.length-1}.`)
-                .catch(error => console.error('Failed to send message: ', error));
-            return false;
-        }
-        if (response_number < 0) {
-            initMessage.channel.send(`You're being way too negative.`)
-                .catch(error => console.error('Failed to send message: ', error));
-            return false;
-        }
-        return !isNaN(response_number) && response.author.id === initMessage.author.id;
-    }
-
-    return await initMessage.channel.awaitMessages(selectFilter, { max: 1 })
-        .then(collected => {
-            pageControlCollector.stop();
-            const responseMessage = collected.first();
-            if(matchesCurrentCommand(responseMessage.content)) {
-                return null;
-            } else {
-                const itemIdx = responseMessage.content.replace('#', '');
-                if(!responseMessage.deleted) responseMessage.delete().catch(console.error);
-                return itemIdx;
-            }
-        });
 }
 
 // determines the dimensions of the expression sprite area and its top padding
@@ -184,304 +87,562 @@ async function buildIndexedExpressionSheet(path, bodyWidth, bodyHeight, eWidth, 
     }
 }
 
-// prompts the user to choose the servant class of his FGO servant
-function runClassPicker(initMessage) {
-    return new Promise(async (resolve, reject) => {
-        const cancelFilter = async (message) => {
+class dialog{
+    constructor(initMessage, servantSearchStr, servantId, sheetId, expressionId, text){
+        this.initMessage = initMessage;
+        this.servantSearchStr = servantSearchStr;
+        this.servantId = servantId;
+        this.sheetId = sheetId;
+        this.expressionId = expressionId;
+        this.text = text;
+
+        this.servantClass;
+        this.servant;
+        this.sheet;
+        this.expression;
+
+        this.reject;
+
+        const cancelFilter = (message) => {
             return matchesCurrentCommand(message.content) && message.author.id === initMessage.author.id;
         };
-        const reexecutionCollector = initMessage.channel.createMessageCollector(cancelFilter);
+        const reexecutionCollector = this.initMessage.channel.createMessageCollector(cancelFilter);
 
         reexecutionCollector.on('collect', m => {
             reexecutionCollector.stop();
-            reject(new CommandCancellationError("Cancelled by reexecution."));
+            this.reject(new CommandCancellationError("Cancelled by reexecution."));
         });
 
         reexecutionCollector.once('end', (collected, reason) => {
-            if(!pickerMsg?.deleted) pickerMsg?.delete().catch(console.error);
+            //if(!pickerMsg?.deleted) pickerMsg?.delete().catch(console.error);
         });
-
-        // fetch all servant class IDs from db. Each one equals a respective FGO class icon emoji ID for Discord.
-        const servantClasses = await ServantClasses.findAll({
-            order: [
-                ['iconId', 'ASC']
-            ],
-        });
-
-        // create a button for every servant class
-        const buttons = [];     // array of MessageActionRows - one for each servant class group
-        const iconIds = [];     // array of Integers - all servant class icon IDs
-        for(const servantClass of servantClasses) {
-            const classIconId = servantClass.dataValues.iconId;
-            const classIconEmoji = initMessage.client.emojis.resolve(servantClass.dataValues.iconId);
-            const classGroup = servantClass.dataValues.group;
-            //const className = servantClass.dataValues.name;
-            iconIds.push(classIconId);  // add id to list
-
-            if(!buttons[classGroup]) { // initialize a MessageActionRow for every servant class group (5 max)
-                buttons[classGroup] = new Discord.MessageActionRow();
-                if(buttons.length > 5)
-                    throw(`Tried to build ${buttons.length} rows of buttons. Message components are limited to 5 MessageActionRows.`)
-            }
-
-            // construct Button
-            const button = new Discord.MessageButton({
-                customID: classIconId.toString(),
-                style: "SECONDARY",
-                type: "BUTTON",
-                emoji: classIconEmoji,
-            });
-            buttons[classGroup].addComponents(button); // add button to their group's row
-        }
-        
-        // send servant class picker message
-        const pickerMsg = await initMessage.channel.send('Pick a class.', {components: buttons})
-            .catch(error => console.error('Failed to send message.', error));
-
-        // await user's selection of class (by reaction)
-        const filter = async (interaction) => {
-            return iconIds.includes(interaction.customID) && interaction.user.id === initMessage.author.id;
-        };
-        pickerMsg.awaitMessageComponentInteractions(filter, { max: 1})
-        .then(async interactions => {
-            if(interactions.size <= 0) return;  // reached in case of a deleted picker message
-            const selectedClass = await ServantClasses.findByPk(interactions.first().customID)
-                .catch(error => console.error("Error encountered while comparing reaction to database.", error));
-            if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
-            reexecutionCollector.stop();
-            resolve(selectedClass);
-        }).catch(error => console.error('Error encountered while collecting reaction.', error));
-    });
-}
-
-// prompts the user to choose his FGO servant
-async function runServantPicker(initMessage, criteria) {
-    var pickerMsgText;
-    var servants;
-    try {
-        if(typeof(criteria) === 'string') {
-            servants = await Servants.findByName(criteria.replace(/ /g, "%"));
-            if(servants.length === 0) {
-                initMessage.channel.send(
-                    `There are no servants matching your search for **${criteria}**.\n`
-                    +`You can try a plain **\`${COMMAND_PREFIX}${COMMAND_NAME}\`** to search by class instead.`)
-                return
-            }
-            pickerMsgText = `These are the servants matching your search for **${criteria}**. Pick one by posting their # in chat.`
-        } else if(typeof(criteria) === 'object') {    // assume criteria to be instance of ServantClass
-            servants = await Servants.findByClass(criteria.dataValues.iconId);
-            pickerMsgText = `Here's a list of all **${criteria.dataValues.name}** servants. Pick one by posting their # in chat.`
-        } else {
-            throw(`Illegal criteria type '${typeof(criteria)}' for servant database lookup.`)
-        }
-    } catch(error) {
-        console.error("Error encountered while fetching servant list from database.", error);
-    };
-
-    // await user's selection of servant (by index)
-    const pickerMsg = await initMessage.channel.send(pickerMsgText).catch(error => console.error('Failed to send message.', error));
-
-    return await awaitIdxSelectionFromList(initMessage, servants)
-        .then(idx => {
-            if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
-            return servants[idx];
-    }).catch(error => console.error('Error encountered while collecting servant selection.', error));;
-}
-
-// prompts the user to choose his servant's character sheet
-async function runSheetPicker(initMessage, servant) {
-    // fetch relevant data for displaying all supported character sheets of chosen servant
-    const sheets = await Sheets.findSheetsForDisplay(servant.dataValues.id)
-        .catch(error => console.error("Error encountered while fetching sheet list from database.", error));;
-
-    // await user's selection of character sheet (by index)
-    const pickerMsg = await initMessage.channel.send(
-        `These are **${servant.dataValues.name}**'s character sheets. Pick one by posting their # in chat.`
-        +`\n_(Sheets marked with an \`(*)\` have not been verified yet, so their result may be off._`
-        ).catch(error => console.error('Failed to send message.', error));
-    const sheetIdx = await awaitIdxSelectionFromList(initMessage, sheets, true)
-        .then(result => {
-            if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
-            return result;
-        }).catch(error => console.error('Error encountered while collecting sheet selection.', error));
-
-    // fetch selected sheet
-    return await Sheets.findByPk(sheets[sheetIdx]?.dataValues.id)
-        .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
-}
-
-// prompts the user to choose an expression from his servant's character sheet
-async function runExpressionPicker(message, indexedExpressionSheet) {
-    const expressionSheetImage = new Discord.MessageAttachment(indexedExpressionSheet.expressionSheet, 'expressions.png');
-    const expressionSelectionPrompt = await message.channel.send(
-        `These are the available expressions for this character sheet. Pick one by posting their # in chat. Type \`0\` to choose their default expression.`,
-        {files: [expressionSheetImage]}
-    ).catch(error => console.error('Failed to send message.', error));
-
-    const selectFilter = response => {
-        response_number = response.content.replace('#', '');
-        if (response_number > indexedExpressionSheet.expressions.length) {
-            message.channel.send(`Please select an ID between 0 and ${indexedExpressionSheet.expressions.length}.`)
-                .catch(error => console.error('Failed to send message: ', error));
-            return false;
-        }
-        if (response_number < 0) {
-            message.channel.send(`You're being way too negative.`)
-                .catch(error => console.error('Failed to send message: ', error));
-            return false;
-        }
-        return !isNaN(response_number) && response.author.id === message.author.id;
     }
 
-    return await message.channel.awaitMessages(selectFilter, { max: 1 })
-        .then(collected => {
-            const itemIdx = collected.first().content.replace('#', '');
-            if(itemIdx === 0) {
+    // does nothing if no servant search or servantId is provided, but a sheetId is. In that case the sheetId must provide the correct servant via runSheetSetter().
+    async runServantSetter() {
+        if(this.servantSearchStr) {
+            await this.promptServantBySearchResults()
+                .catch(error => {
+                    console.error('Failed to prompt for Servant.', error);
+                    return error;
+                });
+
+        } else if(this.servantId){  // if servant is given, fetch it from db
+            this.servant = await Servants.findByPk(this.servantId)
+                .catch(error => {
+                    console.error("Error encountered while fetching selected servant from database.", error);
+                    return error
+                });
+            if(!this.servant) {
+                this.initMessage.channel.send(`There is no servant with the ID ${this.sheetId}.`)
+                    .catch(error => console.error('Failed to send message.', error));
+            }
+        } else if(!this.sheetId) { // if neither servant nor sheet has been given, run the servant picking process
+            await this.promptClass()
+                .catch(error => {
+                    console.error('Class picker failed.', error);
+                    return error;
+                });
+            if(!this.class || this.class instanceof Error) {
+                throw new IllegalStateError(`Invalid state reached. Servant class is ${this.class}.`)
+            };
+            await this.promptServantByClass()
+                .catch(error => {
+                    console.error('Failed to prompt for Servant.', error);
+                    return error;
+                });
+            this.servantId = this.servant?.dataValues?.id;
+        }
+        return this.servant;
+    }
+
+    async runSheetSetter() {
+        // Fetch sheet if given. User picks sheet if not.
+        if (this.sheetId) {  // if sheet is given, fetch it from db.
+            this.sheet = await Sheets.findByPk(this.sheetId)
+                .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
+            if(this.sheet == null) {
+                this.initMessage.channel.send(`There is no character sheet with the ID ${this.sheetId}.`).catch(error => console.error('Failed to send message.', error));
+                return;
+            }
+            if(!this.servant) {   // if no servant has been decided, grab their id from the sheet and fetch their name from db.
+                this.servant = await Servants.findByPk(this.sheet.dataValues.servantId)
+                    .catch(error => console.error("Error encountered while fetching selected servant from database.", error));
+                this.servantId = this.servant.dataValues.id;
+            }
+        } else if(this.servant) {    //if servant has been decided and sheet was not given, run the sheet picking process
+            await this.promptSheet().catch(error => console.error('Sheet Picker failed.', error));
+            if(!this.sheet) return;    // sheet picker was cancelled
+            this.sheetId = this.sheet.dataValues.id;
+        }
+    }
+
+    async runExpressionSetter() {
+        if(!this.servant || !this.sheet) {
+            throw new IllegalStateError(`Invalid state for picking an Expression. Servant is ${this.servant}, sheet is ${this.sheet}.`)
+        }
+
+        if(this.sheet.specialFormat === 0 && this.sheet.eWidth > 0 && this.sheet.eHeight > 0) {
+            // puts indices on the expression sheet subimage for every valid expression
+            // indexedExpressionSheet.expressionSheet returns the entire expression sheet, indexedExpressionSheet.expressions is an array of every subimage.
+            const indexedExpressionSheet = await buildIndexedExpressionSheet(
+                this.sheet.path, this.sheet.bodyWidth, this.sheet.bodyHeight,
+                this.sheet.eWidth, this.sheet.eHeight
+            ).catch(error => console.error('Error encountered while indexing expression sheet.', error));
+
+            if(this.expressionId === 0) {
+                this.expression = null   // use default expression
+            } else if(!this.expressionId) {
+                await this.promptExpression(indexedExpressionSheet)
+                    .catch(error => console.error('Error encountered while collecting expression selection.', error));
+            } else {
+                if(this.expressionId <= indexedExpressionSheet.expressions.length) {
+                    this.expression = indexedExpressionSheet.expressions[expressionId-1];
+                } else {
+                    message.channel.send(`Invalid expression ID. ${this.servant.dataValues.name} has a ID range of 0-${indexedExpressionSheet.expressions.length}`)
+                        .catch(error => console.error('Failed to send message.', error))
+                    return;
+                }
+            }
+        }
+    }
+
+    async runTextSetter() {
+        if(this.text == null || this.text.length <= 0) {
+            await this.promptText(this.initMessage)
+                .catch(error => console.error('Error encountered while collecting dialog text input.', error));
+        }
+    }
+
+    // prompts the user to choose the servant class of his FGO servant
+    promptClass() {
+        return new Promise(async (resolve, reject) => {
+            this.reject = reject;
+
+            // fetch all servant class IDs from db. Each one equals a respective FGO class icon emoji ID for Discord.
+            const servantClasses = await ServantClasses.findAll({
+                order: [
+                    ['iconId', 'ASC']
+                ],
+            });
+
+            // create a button for every servant class
+            const buttons = [];     // array of MessageActionRows - one for each servant class group
+            const iconIds = [];     // array of Integers - all servant class icon IDs
+            for(const servantClass of servantClasses) {
+                const classIconId = servantClass.dataValues.iconId;
+                const classIconEmoji = this.initMessage.client.emojis.resolve(servantClass.dataValues.iconId);
+                const classGroup = servantClass.dataValues.group;
+                //const className = servantClass.dataValues.name;
+                iconIds.push(classIconId);  // add id to list
+
+                if(!buttons[classGroup]) { // initialize a MessageActionRow for every servant class group (5 max)
+                    buttons[classGroup] = new Discord.MessageActionRow();
+                    if(buttons.length > 5)
+                        throw(`Tried to build ${buttons.length} rows of buttons. Message components are limited to 5 MessageActionRows.`)
+                }
+
+                // construct Button
+                const button = new Discord.MessageButton({
+                    customID: classIconId.toString(),
+                    style: "SECONDARY",
+                    type: "BUTTON",
+                    emoji: classIconEmoji,
+                });
+                buttons[classGroup].addComponents(button); // add button to their group's row
+            }
+            
+            // send servant class picker message
+            const pickerMsg = await this.initMessage.channel.send('Pick a class.', {components: buttons})
+                .catch(error => console.error('Failed to send message.', error));
+
+            // await user's selection of class (by reaction)
+            const filter = async (interaction) => {
+                return iconIds.includes(interaction.customID) && interaction.user.id === this.initMessage.author.id;
+            };
+            pickerMsg.awaitMessageComponentInteractions(filter, { max: 1})
+            .then(async interactions => {
+                if(interactions.size <= 0) return;  // reached in case of a deleted picker message
+                this.class = await ServantClasses.findByPk(interactions.first().customID)
+                    .catch(error => console.error("Error encountered while comparing reaction to database.", error));
+                if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
+                resolve();
+            }).catch(error => console.error('Error encountered while collecting reaction.', error));
+        });
+    }
+
+    // prompts the user to choose his FGO servant
+    promptServantBySearchResults() {
+        return new Promise(async (resolve, reject) => {
+            this.reject = reject;
+
+            const servants = await Servants.findByName(this.servantSearchStr.replace(/ /g, "%"));
+            if(servants.length === 0) {
+                this.initMessage.channel.send(
+                    `There are no servants matching your search for **${this.servantSearchStr}**.\n`
+                    +`You can try a plain **\`${COMMAND_PREFIX}${COMMAND_NAME}\`** to search by class instead.`)
                 return null;
             }
-            if(!collected.first().deleted) collected.first().delete().catch(console.error);
-            if(!expressionSelectionPrompt.deleted) expressionSelectionPrompt.delete().catch(console.error);
-            return [indexedExpressionSheet.expressions[itemIdx-1], itemIdx];
+            const pickerMsgText = `These are the servants matching your search for **${this.servantSearchStr}**. Pick one by posting their # in chat.`
+
+            // await user's selection of servant (by index)
+            const pickerMsg = await this.initMessage.channel.send(pickerMsgText).catch(error => console.error('Failed to send message.', error));
+
+            this.servant = await this.awaitIdxSelectionFromList(servants)
+                .then(idx => {
+                    if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
+                    return servants[idx];
+            }).catch(error => console.error('Error encountered while collecting servant selection.', error));;
+            resolve();
         });
-}
-
-// prompts the user to input the text to be displayed in his character dialog box
-async function runDialogTextInput(message) {
-    const textInputPrompt = await message.channel.send(`Input the dialog text for your generated image.`)
-        .catch(error => console.error('Failed to send message.', error));
-
-    const selectFilter = response => {
-        return response.author.id === message.author.id;
     }
-    return await message.channel.awaitMessages(selectFilter, { max: 1 })
-        .then(collected => {
-            const inputMsg = collected.first();
-            const input = inputMsg.content;
-            if(!inputMsg.deleted) inputMsg.delete().catch(console.error);
-            if(!textInputPrompt.deleted) textInputPrompt.delete().catch(console.error);
-            return input;
+
+    // prompts the user to choose his FGO servant
+    promptServantByClass() {
+        return new Promise(async (resolve, reject) => {
+            this.reject = reject;
+
+            const servants = await Servants.findByClass(this.class.dataValues.iconId);
+            const pickerMsgText = `Here's a list of all **${this.class.dataValues.name}** servants. Pick one by posting their # in chat.`
+
+            // await user's selection of servant (by index)
+            const pickerMsg = await this.initMessage.channel.send(pickerMsgText).catch(error => console.error('Failed to send message.', error));
+            this.servant = await this.awaitIdxSelectionFromList(servants)
+                .then(idx => {
+                    if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
+                    return servants[idx];
+            }).catch(error => console.error('Error encountered while collecting servant selection.', error));;
+            resolve();
         });
-}
-
-// constructs the final FGO character dialog image
-async function buildCharacterDialog(path, bodyWidth, bodyHeight, headX, headY, eWidth, eHeight,
-    dialogOffsetX, dialogOffsetY, specialFormat, name, expression, text) {
-
-    // Dialog constants (positioning manually measured from various FGO screenshots)
-    const Dialog = {
-        TEXT_WIDTH: 860,            // adjusted measurement to compensate for wrong letter spacing. proper value: 855
-        HEIGHT: 575,
-        WIDTH: 1024,
-        // Dialog box and its positioning
-        BOX_IMG: './images/dialog_box.png',
-        BOX_X: 0,
-        BOX_Y: 389,
-        BOX_TEXT_X: 70,                // adjusted measurement to compensate for wrong letter spacing. proper value: 72
-        BOX_TEXT1_Y: 490,            // line 1
-        BOX_TEXT2_Y: 540,            // line 2
-        // name (text)
-        get NAME_X(){return 27+this.BOX_X},
-        NAME_Y: 425,
-        // nametag (the name's border / frame)
-        NAMETAG_IMG_MID: './images/dialog_box_name_mid.png',
-        NAMETAG_IMG_END: './images/dialog_box_name_end.png',
-        get NAMETAG_X(){return this.NAME_X},
-        get NAMETAG_Y(){return this.BOX_Y},
-        NAMETAG_WIDTH_MIN: 214,        // TODO use this. Nametags (their MID) are this long even for character names like "BB".
     }
 
+    // prompts the user to choose his servant's character sheet
+    promptSheet() {
+        return new Promise(async (resolve, reject) => {
+            this.reject = reject;
 
-    // prepare sheet
-    const canvas = Canvas.createCanvas(Dialog.WIDTH, Dialog.HEIGHT);
-    const context = canvas.getContext('2d');
-    const sheet = await Canvas.loadImage(path);
-    dialogOffsetX += Math.floor(Dialog.WIDTH-bodyWidth)/2
-    context.drawImage(sheet,
-        0, 0,
-        bodyWidth, bodyHeight,
-        dialogOffsetX, dialogOffsetY,
-        bodyWidth, bodyHeight
-    );
+            // fetch relevant data for displaying all supported character sheets of chosen servant
+            const sheets = await Sheets.findSheetsForDisplay(this.servant.dataValues.id)
+                .catch(error => console.error("Error encountered while fetching sheet list from database.", error));;
 
-    if(specialFormat == 0 && expression != null) {    // specialFormat == 0 equals the default format: 1+ rows of faces below body sprite
-        // cut out default face on body
-        context.clearRect(headX+dialogOffsetX, headY+dialogOffsetY, eWidth, eHeight);
+            // await user's selection of character sheet (by index)
+            const pickerMsg = await this.initMessage.channel.send(
+                `These are **${this.servant.dataValues.name}**'s character sheets. Pick one by posting their # in chat.`
+                +`\n_(Sheets marked with an \`(*)\` have not been verified yet, so their result may be off._`
+                ).catch(error => console.error('Failed to send message.', error));
+            const sheetIdx = await this.awaitIdxSelectionFromList(sheets, true)
+                .then(result => {
+                    if(!pickerMsg.deleted) pickerMsg.delete().catch(console.error);
+                    return result;
+                }).catch(error => console.error('Error encountered while collecting sheet selection.', error));
 
-        // insert face
-        context.putImageData(expression, headX+dialogOffsetX, headY+dialogOffsetY);
+            // fetch selected sheet
+            this.sheet = await Sheets.findByPk(sheets[sheetIdx]?.dataValues.id)
+                .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
+            resolve();
+        });
     }
 
-    // we're using clearRect() on the dialog box, so it gets a new canvas so we don't clip the character sprite
-    const canvas_dbox = Canvas.createCanvas(Dialog.WIDTH, Dialog.HEIGHT);
-    const context_dbox = canvas_dbox.getContext('2d');
+    // prompts the user to choose an expression from his servant's character sheet
+    promptExpression(indexedExpressionSheet) {
+        return new Promise(async (resolve, reject) => {
+            this.reject = reject;
 
-    // define font settings. this is also relevant for measureText()
-    context_dbox.font = "30px FOT-Skip Std B";
-    context_dbox.fillStyle = '#d8d7db';
-    context_dbox.globalAlpha = 0.85;
+            const expressionSheetImage = new Discord.MessageAttachment(indexedExpressionSheet.expressionSheet, 'expressions.png');
+            const expressionSelectionPrompt = await this.initMessage.channel.send(
+                `These are the available expressions for this character sheet. Pick one by posting their # in chat. Type \`0\` to choose their default expression.`,
+                {files: [expressionSheetImage]}
+            ).catch(error => console.error('Failed to send message.', error));
 
-    // insert dialog box
-    const dbox = await Canvas.loadImage(Dialog.BOX_IMG);
-    context_dbox.drawImage(dbox, Dialog.BOX_X, Dialog.BOX_Y);
-
-    // load nametag components
-    const nametag_mid = await Canvas.loadImage(Dialog.NAMETAG_IMG_MID);
-    const nametag_end = await Canvas.loadImage(Dialog.NAMETAG_IMG_END);
-
-    // measure name width, use minimum width if it's too short
-    const name_width = Math.max(context_dbox.measureText(name).width, Dialog.NAMETAG_WIDTH_MIN);
-
-    // clear the nametag area so we can draw our transparent custom nametag
-    context_dbox.clearRect(Dialog.NAMETAG_X, Dialog.NAMETAG_Y, name_width+nametag_end.width, nametag_mid.height);
-
-    // draw nametag to fit the name width
-    for(let i = 0; i < name_width; i++) {
-        context_dbox.drawImage(nametag_mid, Dialog.NAMETAG_X+i, Dialog.NAMETAG_Y);
-    }
-    context_dbox.drawImage(nametag_end, Dialog.NAMETAG_X+name_width, Dialog.NAMETAG_Y);
-
-    // prepare lines
-    const lines = [];
-    context_dbox.globalAlpha = 1.00;
-    context_dbox.textTracking;
-    context_dbox.shadowOffsetX = 2;    // NOTE: shadows also apply to drawImage(), so don't draw images with these settings active
-    context_dbox.shadowOffsetY = 1;
-    context_dbox.shadowColor = "rgba(0,0,0,1.0)";
-    context_dbox.shadowBlur = 2;
-
-    context_dbox.fillText(name, Dialog.NAME_X, Dialog.NAME_Y);
-
-    if (context_dbox.measureText(text).width > Dialog.TEXT_WIDTH) {
-        const words = text.split(' ')
-        var line = words[0];
-        for (var i = 1; i < words.length; i++) {
-            const word = words[i];
-            if (context_dbox.measureText(`${line} ${word}`).width <= Dialog.TEXT_WIDTH) {
-                line += ` ${word}`;
-            } else if (lines.length < 1) {
-                lines.push(line);
-                line = word;
-            } else {
-                //TODO could just generate additional images for additional lines.
-                console.log(`Text is too long for two lines of text!`);
-                break;
+            const selectFilter = response => {
+                const response_number = response.content.replace('#', '');
+                if (response_number > indexedExpressionSheet.expressions.length) {
+                    this.initMessage.channel.send(`Please select an ID between 0 and ${indexedExpressionSheet.expressions.length}.`)
+                        .catch(error => console.error('Failed to send message: ', error));
+                    return false;
+                }
+                if (response_number < 0) {
+                    this.initMessage.channel.send(`You're being way too negative.`)
+                        .catch(error => console.error('Failed to send message: ', error));
+                    return false;
+                }
+                return !isNaN(response_number) && response.author.id === this.initMessage.author.id;
             }
-        }
-        lines.push(line);
-    } else {
-        lines.push(text)
+
+            [this.expression, this.expressionId] = await this.initMessage.channel.awaitMessages(selectFilter, { max: 1 })
+                .then(collected => {
+                    const itemIdx = collected.first().content.replace('#', '');
+                    if(itemIdx === 0) {
+                        return null;
+                    }
+                    if(!collected.first().deleted) collected.first().delete().catch(console.error);
+                    if(!expressionSelectionPrompt.deleted) expressionSelectionPrompt.delete().catch(console.error);
+                    return [indexedExpressionSheet.expressions[itemIdx-1], itemIdx];
+                });
+            resolve();
+        });
     }
 
-    // insert lines
-    context_dbox.fillText(lines[0], Dialog.BOX_TEXT_X, Dialog.BOX_TEXT1_Y);
-    if(lines.length >= 2) {
-        context_dbox.fillText(lines[1], Dialog.BOX_TEXT_X, Dialog.BOX_TEXT2_Y);
+    // prompts the user to input the text to be displayed in his character dialog box
+    promptText() {
+        return new Promise(async (resolve, reject) => {
+            this.reject = reject;
+
+            const textInputPrompt = await this.initMessage.channel.send(`Input the dialog text for your generated image.`)
+                .catch(error => console.error('Failed to send message.', error));
+
+            const selectFilter = response => {
+                return response.author.id === this.initMessage.author.id;
+            }
+            this.text =  await this.initMessage.channel.awaitMessages(selectFilter, { max: 1 })
+                .then(collected => {
+                    const inputMsg = collected.first();
+                    const input = inputMsg.content;
+                    if(!inputMsg.deleted) inputMsg.delete().catch(console.error);
+                    if(!textInputPrompt.deleted) textInputPrompt.delete().catch(console.error);
+                    return input;
+                });
+            resolve();
+        });
     }
 
-    context.drawImage(canvas_dbox, 0, 0);
+    // constructs the final FGO character dialog image
+    buildCharacterDialog() {
+        return new Promise(async (resolve, reject) => {
+            this.reject = reject;
 
-    return canvas.toBuffer();
+            // fixate all needed attributes (& shorter variable names for readability)
+            const path = this.sheet.path;
+            let bodyWidth = this.sheet.bodyWidth;
+            let bodyHeight = this.sheet.bodyHeight;
+            let headX = this.sheet.headX;
+            let headY = this.sheet.headY;
+            let eWidth = this.sheet.eWidth;
+            let eHeight = this.sheet.eHeight;
+            let dialogOffsetX = this.sheet.dialogOffsetX;
+            let dialogOffsetY = this.sheet.dialogOffsetY;
+            const specialFormat = this.sheet.specialFormat;
+            let name = this.servant.shortName ? this.servant.shortName : this.servant.name;
+            let expression = this.expression;
+            let text = this.text;     
+
+            // Dialog constants (positioning manually measured from various FGO screenshots)
+            const Dialog = {
+                TEXT_WIDTH: 860,            // adjusted measurement to compensate for wrong letter spacing. proper value: 855
+                HEIGHT: 575,
+                WIDTH: 1024,
+                // Dialog box and its positioning
+                BOX_IMG: './images/dialog_box.png',
+                BOX_X: 0,
+                BOX_Y: 389,
+                BOX_TEXT_X: 70,                // adjusted measurement to compensate for wrong letter spacing. proper value: 72
+                BOX_TEXT1_Y: 490,            // line 1
+                BOX_TEXT2_Y: 540,            // line 2
+                // name (text)
+                get NAME_X(){return 27+this.BOX_X},
+                NAME_Y: 425,
+                // nametag (the name's border / frame)
+                NAMETAG_IMG_MID: './images/dialog_box_name_mid.png',
+                NAMETAG_IMG_END: './images/dialog_box_name_end.png',
+                get NAMETAG_X(){return this.NAME_X},
+                get NAMETAG_Y(){return this.BOX_Y},
+                NAMETAG_WIDTH_MIN: 214,        // TODO use this. Nametags (their MID) are this long even for character names like "BB".
+            }
+
+            // prepare sheet
+            const canvas = Canvas.createCanvas(Dialog.WIDTH, Dialog.HEIGHT);
+            const context = canvas.getContext('2d');
+            const sheet = await Canvas.loadImage(path);
+            dialogOffsetX += Math.floor(Dialog.WIDTH-bodyWidth)/2
+            context.drawImage(sheet,
+                0, 0,
+                bodyWidth, bodyHeight,
+                dialogOffsetX, dialogOffsetY,
+                bodyWidth, bodyHeight
+            );
+
+            if(specialFormat == 0 && expression != null) {    // specialFormat == 0 equals the default format: 1+ rows of faces below body sprite
+                // cut out default face on body
+                context.clearRect(headX+dialogOffsetX, headY+dialogOffsetY, eWidth, eHeight);
+
+                // insert face
+                context.putImageData(expression, headX+dialogOffsetX, headY+dialogOffsetY);
+            }
+
+            // we're using clearRect() on the dialog box, so it gets a new canvas so we don't clip the character sprite
+            const canvas_dbox = Canvas.createCanvas(Dialog.WIDTH, Dialog.HEIGHT);
+            const context_dbox = canvas_dbox.getContext('2d');
+
+            // define font settings. this is also relevant for measureText()
+            context_dbox.font = "30px FOT-Skip Std B";
+            context_dbox.fillStyle = '#d8d7db';
+            context_dbox.globalAlpha = 0.85;
+
+            // insert dialog box
+            const dbox = await Canvas.loadImage(Dialog.BOX_IMG);
+            context_dbox.drawImage(dbox, Dialog.BOX_X, Dialog.BOX_Y);
+
+            // load nametag components
+            const nametag_mid = await Canvas.loadImage(Dialog.NAMETAG_IMG_MID);
+            const nametag_end = await Canvas.loadImage(Dialog.NAMETAG_IMG_END);
+
+            // measure name width, use minimum width if it's too short
+            const name_width = Math.max(context_dbox.measureText(name).width, Dialog.NAMETAG_WIDTH_MIN);
+
+            // clear the nametag area so we can draw our transparent custom nametag
+            context_dbox.clearRect(Dialog.NAMETAG_X, Dialog.NAMETAG_Y, name_width+nametag_end.width, nametag_mid.height);
+
+            // draw nametag to fit the name width
+            for(let i = 0; i < name_width; i++) {
+                context_dbox.drawImage(nametag_mid, Dialog.NAMETAG_X+i, Dialog.NAMETAG_Y);
+            }
+            context_dbox.drawImage(nametag_end, Dialog.NAMETAG_X+name_width, Dialog.NAMETAG_Y);
+
+            // prepare lines
+            const lines = [];
+            context_dbox.globalAlpha = 1.00;
+            context_dbox.textTracking;
+            context_dbox.shadowOffsetX = 2;    // NOTE: shadows also apply to drawImage(), so don't draw images with these settings active
+            context_dbox.shadowOffsetY = 1;
+            context_dbox.shadowColor = "rgba(0,0,0,1.0)";
+            context_dbox.shadowBlur = 2;
+
+            context_dbox.fillText(name, Dialog.NAME_X, Dialog.NAME_Y);
+
+            if (context_dbox.measureText(text).width > Dialog.TEXT_WIDTH) {
+                const words = text.split(' ')
+                var line = words[0];
+                for (var i = 1; i < words.length; i++) {
+                    const word = words[i];
+                    if (context_dbox.measureText(`${line} ${word}`).width <= Dialog.TEXT_WIDTH) {
+                        line += ` ${word}`;
+                    } else if (lines.length < 1) {
+                        lines.push(line);
+                        line = word;
+                    } else {
+                        //TODO could just generate additional images for additional lines.
+                        console.log(`Text is too long for two lines of text!`);
+                        break;
+                    }
+                }
+                lines.push(line);
+            } else {
+                lines.push(text)
+            }
+
+            // insert lines
+            context_dbox.fillText(lines[0], Dialog.BOX_TEXT_X, Dialog.BOX_TEXT1_Y);
+            if(lines.length >= 2) {
+                context_dbox.fillText(lines[1], Dialog.BOX_TEXT_X, Dialog.BOX_TEXT2_Y);
+            }
+
+            context.drawImage(canvas_dbox, 0, 0);
+
+            resolve(canvas.toBuffer());
+        })
+    }
+
+    // awaits text input from user representing an index in a output indexed item list
+    awaitIdxSelectionFromList(dataInstance, markStatus=false) {
+        return new Promise(async (resolve, reject) => {
+            this.reject = reject;
+            // returns a message listing the items of modelArray seperated into pages. modelArray must have a name field.
+            function generateItemListString(dataInstance, page, max_pages, markStatus=false) {
+                let listStr = "```";
+                if(page > 0) {
+                    listStr += `... \n`
+                }
+                for (let i = LIST_PAGE_SIZE*page ; i < LIST_PAGE_SIZE+LIST_PAGE_SIZE*page
+                    && i < dataInstance.length ; i++) {
+                    listStr += `[#${i}] ${dataInstance[i].dataValues.name}`;
+                    //if(markStatus && !dataInstance[i].status() === false) {
+                    if(markStatus && !dataInstance[i].status()) {
+                        listStr += " (*)";
+                    }
+                    listStr += "\n";
+                }
+                if (page < max_pages) {
+                    listStr += `...`
+                }
+                listStr += "```";
+                return listStr;
+            }
+
+            const buttons = [];     // array of MessageActionRows
+            const emojis = [];
+            const emojiDown = "⬇️";
+            const emojiUp = "⬆️";
+            emojis.push(emojiDown);
+            emojis.push(emojiUp);
+
+            // construct Buttons and add them to the message components
+            buttons[0] = new Discord.MessageActionRow();
+            for(const e of emojis) {
+                const button = new Discord.MessageButton({
+                    customID: e,
+                    style: "SECONDARY",
+                    type: "BUTTON",
+                }).setEmoji(e);
+                buttons[0].addComponents(button);
+            }
+            
+            let page = 0;
+            const max_pages = Math.floor(dataInstance.length/LIST_PAGE_SIZE);
+            let listMessage = await this.initMessage.channel.send(`${generateItemListString(dataInstance, page, max_pages, markStatus)}`, {components: buttons})
+                .catch(error => console.error('Failed to send servant list message: ', error));
+
+            const listPagesFilter = (interaction) => {
+                return emojis.includes(interaction.customID) && interaction.user.id === this.initMessage.author.id;
+            };
+            const pageControlCollector = listMessage.createMessageComponentInteractionCollector(listPagesFilter);
+
+            pageControlCollector.on('collect', async (interaction) => {
+                if (interaction.customID === emojiUp && page > 0) {
+                    page--;
+                } else if (interaction.customID === emojiDown && page < max_pages) {
+                    page++;
+                }
+                // TODO find a way to acknowledge the button interaction without updating the message if page doesn't change
+                await interaction.update(`${generateItemListString(dataInstance, page, max_pages, markStatus)}`, {components: buttons})
+                    .catch(error => console.error('Failed to update message:', error));
+            });
+
+            pageControlCollector.on('end', (collection, reason) => {
+                if(!listMessage.deleted) listMessage.delete().catch(console.error);
+            });
+
+            const selectFilter = response => {
+                const response_number = response.content.replace('#', '');
+                if (response_number >= dataInstance.length) {
+                    this.initMessage.channel.send(`Please select an ID between 0 and ${dataInstance.length-1}.`)
+                        .catch(error => console.error('Failed to send message: ', error));
+                    return false;
+                }
+                if (response_number < 0) {
+                    this.initMessage.channel.send(`You're being way too negative.`)
+                        .catch(error => console.error('Failed to send message: ', error));
+                    return false;
+                }
+                return !isNaN(response_number) && response.author.id === this.initMessage.author.id;
+            }
+
+            return await this.initMessage.channel.awaitMessages(selectFilter, { max: 1 })
+                .then(collected => {
+                    pageControlCollector.stop();
+                    const responseMessage = collected.first();
+                    const itemIdx = responseMessage.content.replace('#', '');
+                    if(!responseMessage.deleted) responseMessage.delete().catch(console.error);
+                    resolve(itemIdx);
+                });
+        })
+    }
 }
+
+
+
+
+
+
 
 module.exports = {
     name: COMMAND_NAME,
@@ -536,105 +697,34 @@ module.exports = {
         }
         dialogText = args?.join(' ');    // if any arguments follow, it's (supposed to be) the dialog text.
 
-        var selectedClass;
-        var selectedServant;
-        var selectedSheet;
-
-        // 1) Search servant based on given search string if given. User picks from search results.
-        // 2) Fetch servant if given.
-        // 3) Let the user pick a servant if neither servantId nor sheetId is given.
-        if(servantSearchStr) {
-            selectedServant = await runServantPicker(message, servantSearchStr).catch(error => console.error('Servant Picker failed.', error));
-            if(!selectedServant) return;    // search returned empty or servant picker was cancelled
-        } else if(servantId){  // if servant is given, fetch it from db
-            selectedServant = await Servants.findByPk(servantId)
-                .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
-            if(!selectedServant) {
-                message.channel.send(`There is no servant with the ID ${sheetId}.`)
-                    .catch(error => console.error('Failed to send message.', error));
-                return;
-            }
-        } else if(!sheetId){ // if neither servant nor sheet has been given, run the servant picking process
-            selectedClass = await runClassPicker(message)
-                .catch(error => {
-                    if(error instanceof CommandCancellationError) {
-                        return null;
-                    } else {
-                        console.error('Class Picker failed.', error);
-                    };
-                });
-            if(!selectedClass) return;
-            selectedServant = await runServantPicker(message, selectedClass).catch(error => console.error('Servant Picker failed.', error));
-            if(!selectedServant) return;    // servant picker was cancelled by user
-            servantId = selectedServant.dataValues.id;
+        const dialogInstance = new dialog(message, servantSearchStr, servantId, sheetId, expressionId, dialogText);
+        
+        let result;
+        result = await dialogInstance.runServantSetter();
+        if(result instanceof Error) {
+            return;
+        }
+        result = await dialogInstance.runSheetSetter();
+        if(result instanceof Error) {
+            return;
+        }
+        result = await dialogInstance.runExpressionSetter();
+        if(result instanceof Error) {
+            return;
+        }
+        result = await dialogInstance.runTextSetter();
+        if(result instanceof Error) {
+            return;
         }
 
-        // Fetch sheet if given. User picks sheet if not.
-        if (sheetId) {  // if sheet is given, fetch it from db.
-            selectedSheet = await Sheets.findByPk(sheetId)
-                .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
-            if(selectedSheet == null) {
-                message.channel.send(`There is no character sheet with the ID ${sheetId}.`).catch(error => console.error('Failed to send message.', error));
-                return;
-            }
-            if(!selectedServant) {   // if no servant has been decided, grab their id from the sheet and fetch their name from db.
-                selectedServant = await Servants.findByPk(selectedSheet.dataValues.servantId)
-                    .catch(error => console.error("Error encountered while fetching selected servant from database.", error));
-                servantId = selectedServant.dataValues.id;
-            }
-        } else if(selectedServant) {    //if servant has been decided and sheet was not given, run the sheet picking process
-            selectedSheet = await runSheetPicker(message, selectedServant).catch(error => console.error('Sheet Picker failed.', error));
-            if(!selectedSheet) return;    // sheet picker was cancelled
-            sheetId = selectedSheet.dataValues.id;
-        }
-
-        if(!selectedServant || !selectedSheet) {
-            throw(`Invalid state reached. Servant is ${selectedServant}, sheet is ${selectedSheet}.`)
-        }
-
-        const servantName = selectedServant.shortName ? selectedServant.shortName : selectedServant.name;
-
-        var selectedExpression;
-        if(selectedSheet.specialFormat == 0 && selectedSheet.eWidth > 0 && selectedSheet.eWidth > 0) {
-            // puts indices on the expression sheet subimage for every valid expression
-            // indexedExpressionSheet.expressionSheet returns the entire expression sheet, indexedExpressionSheet.expressions is an array of every subimage.
-            const indexedExpressionSheet = await buildIndexedExpressionSheet(
-                selectedSheet.path, selectedSheet.bodyWidth, selectedSheet.bodyHeight,
-                selectedSheet.eWidth, selectedSheet.eHeight
-            ).catch(error => console.error('Error encountered while indexing expression sheet.', error));
-
-            if(expressionId === 0) {
-                selectedExpression = null   // use default expression
-            } else if(expressionId == null) {
-                [selectedExpression, expressionId] = await runExpressionPicker(message, indexedExpressionSheet)
-                    .catch(error => console.error('Error encountered while collecting expression selection.', error));
-            } else {
-                if(expressionId <= indexedExpressionSheet.expressions.length) {
-                    selectedExpression = indexedExpressionSheet.expressions[expressionId-1];
-                } else {
-                    message.channel.send(`Invalid expression ID. ${selectedServant.dataValues.name} has a ID range of 0-${indexedExpressionSheet.expressions.length}`)
-                        .catch(error => console.error('Failed to send message.', error))
-                    return;
-                }
-            }
-        }
-
-        if(dialogText == null || dialogText.length <= 0) {
-            dialogText = await runDialogTextInput(message)
-            .catch(error => console.error('Error encountered while collecting dialog text input.', error));
-        }
-
-        const imageBuffer = await buildCharacterDialog(
-            selectedSheet.path, selectedSheet.bodyWidth, selectedSheet.bodyHeight, selectedSheet.headX, selectedSheet.headY,
-            selectedSheet.eWidth, selectedSheet.eHeight, selectedSheet.dialogOffsetX, selectedSheet.dialogOffsetY,
-            selectedSheet.specialFormat, servantName, selectedExpression, dialogText
-        );
+        const imageBuffer = await dialogInstance.buildCharacterDialog();
 
         // send finished image to Discord
         const attachment = new Discord.MessageAttachment(imageBuffer, 'dialogue.png');
         await message.channel.send(attachment);
         if(displayHint) {
-            message.channel.send(`Hint: You can generate this dialog directly by typing: **\`${COMMAND_PREFIX}${COMMAND_NAME} [:${sheetId}:${expressionId}] ${dialogText}\`**`)
+            message.channel.send(`Hint: You can generate this dialog directly by typing: `
+            +`**\`${COMMAND_PREFIX}${COMMAND_NAME} [:${dialogInstance.sheetId}:${dialogInstance.expressionId}] ${dialogInstance.text}\`**`)
                 .catch(error => console.error('Failed to send message.', error));
         }
     },
