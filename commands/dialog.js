@@ -146,7 +146,7 @@ class dialog{
                     return error;
                 });
             if(!this.class || this.class instanceof Error) {
-                throw new IllegalStateError(`Invalid state reached. Servant class is ${this.class}.`)
+                throw new IllegalStateError(`Invalid state reached. Servant class is ${this.class}.`);
             };
             this.servant = await this.promptServantByClass()
                 .catch(error => {
@@ -159,29 +159,42 @@ class dialog{
     }
 
     async runSheetSetter() {
+        if(!this.servant && !this.sheetId || this.servant instanceof Error) {
+            throw new IllegalStateError(`Invalid state for picking a sheet. Sheet ID is "${this.sheetId}", servant is "${this.servant}".`)
+        }
+
         // Fetch sheet if given. User picks sheet if not.
         if (this.sheetId) {  // if sheet is given, fetch it from db.
             this.sheet = await Sheets.findByPk(this.sheetId)
-                .catch(error => console.error("Error encountered while fetching selected sheet from database.", error));
+                .catch(error => {
+                    console.error("Error encountered while fetching selected sheet from database.", error);
+                    return error;
+                });
             if(this.sheet == null) {
                 this.initMessage.channel.send(`There is no character sheet with the ID ${this.sheetId}.`).catch(error => console.error('Failed to send message.', error));
-                return;
             }
-            if(!this.servant) {   // if no servant has been decided, grab their id from the sheet and fetch their name from db.
+            if(!this.servant && this.sheet) {   // if no servant has been decided, grab their id from the sheet and fetch their name from db.
                 this.servant = await Servants.findByPk(this.sheet.dataValues.servantId)
-                    .catch(error => console.error("Error encountered while fetching selected servant from database.", error));
-                this.servantId = this.servant.dataValues.id;
+                    .catch(error => {
+                        console.error("Error encountered while fetching selected servant from database.", error);
+                        return error;
+                    });
+                this.servantId = this.servant?.dataValues?.id;
             }
-        } else if(this.servant) {    //if servant has been decided and sheet was not given, run the sheet picking process
-            this.sheet = await this.promptSheet().catch(error => console.error('Sheet Picker failed.', error));
-            if(!this.sheet) return;    // sheet picker was cancelled
-            this.sheetId = this.sheet.dataValues.id;
+        } else if(this.servant && !(this.servant instanceof Error)) {    // if servant has been decided and sheet was not given, run the sheet picking process
+            this.sheet = await this.promptSheet().catch(error => {
+                console.error('Sheet Picker failed.', error);
+                return error;
+            });
+            // if(!this.sheet) return;    // sheet picker was cancelled
+            this.sheetId = this.sheet?.dataValues?.id;
         }
+        return this.sheet;
     }
 
     async runExpressionSetter() {
-        if(!this.servant || !this.sheet) {
-            throw new IllegalStateError(`Invalid state for picking an Expression. Servant is ${this.servant}, sheet is ${this.sheet}.`)
+        if(!this.servant || !this.sheet || this.servant instanceof Error || this.sheet instanceof Error) {
+            throw new IllegalStateError(`Invalid state for picking an expression. Servant is "${this.servant}", sheet is "${this.sheet}".`)
         }
 
         if(this.sheet.specialFormat === 0 && this.sheet.eWidth > 0 && this.sheet.eHeight > 0) {
@@ -190,30 +203,41 @@ class dialog{
             const indexedExpressionSheet = await buildIndexedExpressionSheet(
                 this.sheet.path, this.sheet.bodyWidth, this.sheet.bodyHeight,
                 this.sheet.eWidth, this.sheet.eHeight
-            ).catch(error => console.error('Error encountered while indexing expression sheet.', error));
+            ).catch(error => {
+                console.error('Error encountered while indexing expression sheet.', error);
+                //this.expression = error;
+            });
 
             if(this.expressionId === 0) {
                 this.expression = null   // use default expression
             } else if(!this.expressionId) {
                 [this.expression, this.expressionId] = await this.promptExpression(indexedExpressionSheet)
-                    .catch(error => console.error('Error encountered while collecting expression selection.', error));
+                    .catch(error => {
+                        console.error('Error encountered while collecting expression selection.', error);
+                        return [error, null];
+                    });
             } else {
                 if(this.expressionId <= indexedExpressionSheet.expressions.length) {
                     this.expression = indexedExpressionSheet.expressions[expressionId-1];
                 } else {
                     message.channel.send(`Invalid expression ID. ${this.servant.dataValues.name} has a ID range of 0-${indexedExpressionSheet.expressions.length}`)
                         .catch(error => console.error('Failed to send message.', error))
-                    return;
+                    this.expression = new Error("TODO"); // TODO
                 }
             }
         }
+        return this.expression;
     }
 
     async runTextSetter() {
         if(this.text == null || this.text.length <= 0) {
             this.text = await this.promptText(this.initMessage)
-                .catch(error => console.error('Error encountered while collecting dialog text input.', error));
+                .catch(error => {
+                    console.error('Error encountered while collecting dialog text input.', error);
+                    this.text = error;
+                });
         }
+        return this.text;
     }
 
     // prompts the user to choose the servant class of his FGO servant
