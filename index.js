@@ -67,7 +67,7 @@ client.on('message', message => {
 // posts URLs of steam websites as "steam://"" URLs for easy access
 client.on('message', message => {
     const STEAM_URL_RGX = /^(?:[^\r\n]+ )*<?((?:https?:\/\/)?(?:\w+\.)*steam(?:powered|community).com\/?\S*?)>?(?: [^\r\n]+)*$/gm
-    if (message.author.bot) return;
+    if (message.author.id === client.user.id) return;
     const match = STEAM_URL_RGX.exec(message.content);
     if(match) {
         let steam_url = match[1];
