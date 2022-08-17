@@ -24,10 +24,13 @@
         "src/index.ts"
     ],
     "include": [
-        "./**/*.ts"
+        "src/**/*.ts"
     ],
     "exclude": [
         "node_modules",
         "dist"
     ],
+    "ts-node": {
+	"esm": true
+    }
 }

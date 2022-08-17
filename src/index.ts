@@ -1,7 +1,7 @@
 import fs from 'fs';
 import Discord from "discord.js"
-import {redditvideo} from './commands/passive/redditvideo';
-import {steamurl} from './commands/passive/steamurl';
+import * as redditvideo from './commands/passive/redditvideo';
+import * as steamurl from './commands/passive/steamurl';
 const {command_prefix: COMMAND_PREFIX} = require('../config.json');
 
 const intents = new Discord.Intents();
@@ -18,7 +18,7 @@ const client = new Discord.Client({
  
 let commands = new Discord.Collection<string, any>();
 
-const commandFiles = fs.readdirSync('./commands').filter((file: string) => file.endsWith('.ts'));
+const commandFiles = fs.readdirSync('src/commands').filter((file: string) => file.endsWith('.ts'));
 
 for (const file of commandFiles) {
     const command = require(`./commands/${file}`);
