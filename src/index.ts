@@ -44,9 +44,7 @@ async function collectCommands() {
 
     for (const file of commandFiles) {
         const command:Command = await import(`./commands/${file}`) as unknown as Command; // use Command interface to assume the existence of its properties
-        console.log(command);
         const data:SlashCommandBuilder = command.data;
-        console.log(command.data.name);
         // command name : exported module
         commands.set(data.name, command);
     }
@@ -60,9 +58,8 @@ function registerCommands() {
 
     for (const cmd of commands) {
         commands_json.push(cmd[1].data.toJSON());
+        console.log(`Added ${cmd[0]} to command register.`)
     }
-
-    console.log("json:\n", commands_json);
 
     const rest = new REST({ version: '10' }).setToken(token);
 

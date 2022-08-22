@@ -35,6 +35,7 @@ module.exports = {
 		.setName('rq')
 		.setDescription('Posts a random FGO dialogue quote by Da Vinci.'),
 	async execute(interaction:Discord.CommandInteraction) {
+        console.log("Executing /rq")
         if(dialogues.length <= 0) {
             interaction.reply({ 
                 content:"Sorry, I failed to retrieve the required dialogue data.",
