@@ -6,25 +6,25 @@ let dialogues: string[][] = [];
 
 const parseDialogues = async () => {
     const rgx_stripped = /^([\s\S]*?)Dialogue Related Servants/gu
-    const rgx =  /NA(?:<\/?[\s\S]+?>[\s]*(?:TL)?)+([\s\S]+?)(?:<\/[\s\S]+?>\s*?)[\s\S]+?<audio src="(https?:\S+?.ogg)/gu;
-    const html = (await Axios.get('https://fategrandorder.fandom.com/wiki/Sub:Leonardo_Da_Vinci/Dialogue')).data;
+    const rgx_quote =  /NA(?:<\/?[\s\S]+?>[\s]*(?:TL)?)+([\s\S]+?)(?:<\/[\s\S]+?>\s*?)[\s\S]+?<audio src="(https?:\S+?.ogg)/gu;
+    const html_full = (await Axios.get('https://fategrandorder.fandom.com/wiki/Sub:Leonardo_Da_Vinci/Dialogue')).data;
 
     // strip the html of a lot of unneeded data
-    let match_clean_html = rgx_stripped.exec(html);
-    if(match_clean_html == null) {
+    let match_html_clean = rgx_stripped.exec(html_full);
+    if(match_html_clean == null) {
         console.log("ERROR: rq failed to retrieve cleaned up html page!");
         return;
     }
-    let html_short = match_clean_html[0]
-    let match = rgx.exec(html_short);
-    if(match == null) {
+    let html_clean = match_html_clean[0]
+    let match_quote = rgx_quote.exec(html_clean);
+    if(match_quote == null) {
         console.log("Error: rq dialogue regex returned an empty result!");
         return;
     }
-    while((match = rgx.exec(html_short)) !== null) {
+    while((match_quote = rgx_quote.exec(html_clean)) !== null) {
         //console.log(`Found: [${match[1]} , ${match[2]}`);
-        let quote:string = match[1].replaceAll(/(?:<br \/>)|(?:<p>)/g, ""); // replace white space tags inbetween the quote
-        let audio_url:string = match[2];
+        let quote:string = match_quote[1].replaceAll(/(?:<br \/>)|(?:<p>)/g, ""); // replace white space tags inbetween the quote
+        let audio_url:string = match_quote[2];
         dialogues.push([quote, audio_url]);
     }
 }
