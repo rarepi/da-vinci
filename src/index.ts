@@ -6,8 +6,13 @@ import { SlashCommandBuilder } from '@discordjs/builders';
 import { Routes } from "discord-api-types/v10";
 import { REST } from '@discordjs/rest';
 import { clientId, guildId, token } from './config.json';
+import db from './db'
 //const {command_prefix: COMMAND_PREFIX} = require('../config.json');
 
+
+/*
+    setup Discord client
+*/
 const intents = new Discord.Intents();
 intents.add(
     Discord.Intents.FLAGS.GUILDS,
@@ -30,14 +35,17 @@ client.on('messageCreate', message => {
     console.log(`[${message.createdAt} ${(message.channel as Discord.TextChannel).name}] ${message.author.username}#${message.author.discriminator} : ${message.content}`);
 });
 
+
+
 /*
-    slash commands
+    setup slash commands
 */
 interface Command {
     data: SlashCommandBuilder,
     execute: Function
 }
 
+// read command files
 let commands = new Discord.Collection<string, Command>();
 async function collectCommands() {
     const commandFiles = fs.readdirSync('src/commands').filter((file: string) => file.endsWith('.ts'));
@@ -50,7 +58,7 @@ async function collectCommands() {
     }
 }
 
-// dynamic command register
+// register commands to Discord
 collectCommands()
     .then(() => registerCommands()); // should not be executed everytime - TODO: either check if new commands have been added or just make this a command by itself
 function registerCommands() {
@@ -68,7 +76,7 @@ function registerCommands() {
         .catch(console.error);
 }
 
-// execute command on interaction
+// execute commands on interaction
 client.on('interactionCreate', async (interaction) => {
 	if (!interaction.isApplicationCommand()) return;
 
@@ -82,8 +90,10 @@ client.on('interactionCreate', async (interaction) => {
 	}
 });
 
+
+
 /*
-    passive functions
+    setup passive functions
 */
 
 // reddit video uploader
@@ -109,5 +119,21 @@ client.on('messageCreate', message => {
         steamurl.execute(message, steam_url);
     } else return;
 });
+
+
+
+/*
+    setup database
+*/
+console.log(db)
+
+
+
+
+
+
+
+
+
 
 client.login(token);
