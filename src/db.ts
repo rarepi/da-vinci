@@ -1,6 +1,4 @@
-'use strict';
-
-import { DataTypes, Sequelize } from 'sequelize';
+import { Sequelize } from 'sequelize';
 import fs from 'fs';
 
 const sequelize = new Sequelize({
