@@ -19,6 +19,9 @@ class Servant extends Model<InferAttributes<Servant>, InferCreationAttributes<Se
                 name: 'class',
                 allowNull: true,
             }
+        }),
+        Servant.belongsToMany(models.Banner, {
+            through: models.BannerServants
         })
     }
 }

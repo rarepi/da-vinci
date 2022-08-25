@@ -1,4 +1,4 @@
-import { Sequelize } from 'sequelize';
+import { Sequelize, Transaction } from 'sequelize';
 import fs from 'fs';
 
 const sequelize = new Sequelize({
@@ -6,6 +6,7 @@ const sequelize = new Sequelize({
     //logging: console.log,
     logging: false,
     storage: 'db/servants.db',
+    //transactionType: Transaction.TYPES.IMMEDIATE, // https://github.com/sequelize/sequelize/issues/10304
 });
 
 class Database extends Array<any>{
