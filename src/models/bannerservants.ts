@@ -14,14 +14,5 @@ BannerServants.init({
     sequelize,
  })
 
-/*
-    Servants.findByClass = function(classId:number) {
-        return this.findAll({
-            where: {
-                classId: classId
-            }
-        })
-    }
-*/
 return BannerServants;
 }

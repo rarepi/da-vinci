@@ -32,7 +32,26 @@ client.once('ready', () => {
 
 // chat log: print every text message to console
 client.on('messageCreate', message => {
-    console.log(`[${message.createdAt} ${(message.channel as Discord.TextChannel).name}] ${message.author.username}#${message.author.discriminator} : ${message.content}`);
+    console.log(`${message.type} [${message.createdAt} ${(message.channel as Discord.TextChannel).name}] ${message.author.username}#${message.author.discriminator} : ${message.content}`);
+});
+
+// chat log: print every interaction to console
+client.on('interactionCreate', interaction => {
+    if (!interaction.isCommand()) return;
+    let timestamp = interaction.createdAt;
+    let channelName = (interaction.channel as Discord.TextChannel).name;
+    let username = `${interaction.user.username}#${interaction.user.discriminator}`;
+    let cmd : string[] = [interaction.commandName];
+    let options : readonly any[] = interaction.options?.data;
+    while(options && options.length > 0) {
+        if(options[0].type == "SUB_COMMAND_GROUP" || options[0].type == "SUB_COMMAND")   
+            cmd.push(options[0].name);
+        else
+            cmd.push(options[0].value);
+        options = options[0].options;
+    }
+    let commandLine = cmd.join(` `);
+    console.log(`${interaction.type} [${timestamp} ${channelName}] ${username} : /${commandLine}`);
 });
 
 
@@ -86,7 +105,7 @@ client.on('interactionCreate', async (interaction) => {
 		await command.execute(interaction);
 	} catch (error) {
 		console.error(error);
-		await interaction.reply({ content: 'There was an error while executing this command.', ephemeral: true });
+		//await interaction.reply({ content: 'There was an error while executing this command.', ephemeral: true });
 	}
 });
 
