@@ -80,8 +80,8 @@ class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Bann
         } else {
             const refBanner = recentBanners[0];
             console.log(`Banner used for reference: ${refBanner.name}`);
-            let refActualTime = Date.UTC(refBanner.na_start_date.getFullYear(), refBanner.na_start_date.getMonth(), refBanner.na_start_date.getDay());
-            let refPredictionTime = Date.UTC(refBanner.jp_start_date.getFullYear()+2, refBanner.jp_start_date.getMonth(), refBanner.jp_start_date.getDay());
+            let refPredictionTime = Date.UTC(refBanner.jp_start_date.getUTCFullYear()+2, refBanner.jp_start_date.getUTCMonth(), refBanner.jp_start_date.getUTCDate());
+            let refActualTime = Date.UTC(refBanner.na_start_date.getUTCFullYear(), refBanner.na_start_date.getUTCMonth(), refBanner.na_start_date.getUTCDate());
             predictionOffsetDays = Math.floor((refActualTime - refPredictionTime) / 1000 / 60 / 60 / 24);
             console.log(`NA was recently ahead of JP date by ${predictionOffsetDays} days.`);
 

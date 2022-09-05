@@ -1037,8 +1037,8 @@ async function execBannerNext(count:number) : Promise<MessageEmbed|null> {
 			date_end = (b.na_end_date as Date).toLocaleString('de-DE', {timeZone: "Europe/Berlin"});
 		} else {
 			let startTemp = b.jp_start_date as Date;
-			startTemp.setDate(startTemp.getDate()+dayOffset);	// add day offset JP -> NA
-			startTemp.setFullYear(startTemp.getFullYear()+2);	// add 2 year difference JP -> NA
+			startTemp.setDate(startTemp.getDate() + dayOffset);	// add day offset JP -> NA
+			startTemp.setFullYear(startTemp.getFullYear() + 2);	// add 2 year difference JP -> NA
 			date_start = startTemp.toLocaleString('de-DE', {timeZone: "Europe/Berlin"});
 
 			let endTemp = b.jp_end_date as Date;
