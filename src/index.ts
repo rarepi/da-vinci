@@ -13,16 +13,12 @@ import db from './db'
 /*
     setup Discord client
 */
-const intents = new Discord.Intents();
-intents.add(
-    Discord.Intents.FLAGS.GUILDS,
-    Discord.Intents.FLAGS.GUILD_MESSAGES, 
-    Discord.Intents.FLAGS.GUILD_MESSAGE_REACTIONS, 
-    Discord.Intents.FLAGS.DIRECT_MESSAGES, 
-    Discord.Intents.FLAGS.DIRECT_MESSAGE_REACTIONS);
-
-const client = new Discord.Client({ 
-    intents: intents
+const client = new Discord.Client({
+    intents: [
+        Discord.GatewayIntentBits.Guilds,
+        Discord.GatewayIntentBits.GuildMessages,
+        Discord.GatewayIntentBits.DirectMessages,
+    ]
 });
 
 // runs once after login
@@ -32,26 +28,27 @@ client.once('ready', () => {
 
 // chat log: print every text message to console
 client.on('messageCreate', message => {
-    console.log(`${message.type} [${message.createdAt} ${(message.channel as Discord.TextChannel).name}] ${message.author.username}#${message.author.discriminator} : ${message.content}`);
+    console.log(`MSG [${message.createdAt} ${(message.channel as Discord.TextChannel).name}] ${message.author.username}#${message.author.discriminator} : ${message.content}`);
 });
 
 // chat log: print every interaction to console
 client.on('interactionCreate', interaction => {
-    if (!interaction.isCommand()) return;
+    if (interaction.type !== Discord.InteractionType.ApplicationCommand) return;
     let timestamp = interaction.createdAt;
     let channelName = (interaction.channel as Discord.TextChannel).name;
     let username = `${interaction.user.username}#${interaction.user.discriminator}`;
     let cmd : string[] = [interaction.commandName];
-    let options : readonly any[] = interaction.options?.data;
-    while(options && options.length > 0) {
-        if(options[0].type == "SUB_COMMAND_GROUP" || options[0].type == "SUB_COMMAND")   
-            cmd.push(options[0].name);
-        else
-            cmd.push(options[0].value);
-        options = options[0].options;
+    // rebuild used commandline via option properties
+    let options : Discord.CommandInteractionOption<Discord.CacheType> | undefined = interaction.options.data[0];
+    while(options) {
+        if(options.type == Discord.ApplicationCommandOptionType.SubcommandGroup || options.type == Discord.ApplicationCommandOptionType.Subcommand)
+            cmd.push(options.name);
+        else if(options.value)  // parameter CommandInteractionOption.value is optional
+            cmd.push(options.value.toString());
+        options = options.options?.[0];
     }
     let commandLine = cmd.join(` `);
-    console.log(`${interaction.type} [${timestamp} ${channelName}] ${username} : /${commandLine}`);
+    console.log(`APP_CMD [${timestamp} ${channelName}] ${username} : /${commandLine}`);
 });
 
 
@@ -97,7 +94,7 @@ function registerCommands() {
 
 // execute commands on interaction
 client.on('interactionCreate', async (interaction) => {
-	if (!interaction.isApplicationCommand()) return;
+	if (interaction.type !== Discord.InteractionType.ApplicationCommand) return;
 
 	const command = commands.get(interaction.commandName);
 	if (!command) return;
@@ -139,20 +136,9 @@ client.on('messageCreate', message => {
     } else return;
 });
 
-
-
 /*
     setup database
 */
 console.log(db)
-
-
-
-
-
-
-
-
-
 
 client.login(token);

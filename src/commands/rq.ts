@@ -23,7 +23,7 @@ const parseDialogues = async () => {
     }
     while((match_quote = rgx_quote.exec(html_clean)) !== null) {
         //console.log(`Found: [${match[1]} , ${match[2]}`);
-        let quote:string = match_quote[1].replaceAll(/(?:<br \/>)|(?:<p>)/g, ""); // replace white space tags inbetween the quote
+        let quote:string = match_quote[1].replace(/(?:<br \/>)|(?:<p>)/g, ""); // replace white space tags inbetween the quote
         let audio_url:string = match_quote[2];
         dialogues.push([quote, audio_url]);
     }

@@ -1,4 +1,4 @@
-import Discord, { Interaction, MessageEmbed } from 'discord.js';
+import Discord from 'discord.js';
 import { SlashCommandBuilder, EmbedBuilder } from '@discordjs/builders';
 import Axios from 'axios';
 import db from '../db';
@@ -966,7 +966,7 @@ async function fetchBanners() : Promise<Banner[]> {
 	return banners;
 }
 
-async function execBannerCurrent() : Promise<MessageEmbed|null> {
+async function execBannerCurrent() : Promise<EmbedBuilder|null> {
 	let currentBanners : (typeof BannerModel)[] = await BannerModel.findCurrent();
 	if(currentBanners.length <= 0)
 		return null;
@@ -1005,12 +1005,10 @@ async function execBannerCurrent() : Promise<MessageEmbed|null> {
 		}
 	}
 
-	// TODO fix this workaround?
-	let e : MessageEmbed = new MessageEmbed(embed.toJSON());
-	return e;
+	return embed;
 }
 
-async function execBannerNext(count:number) : Promise<MessageEmbed|null> {
+async function execBannerNext(count:number) : Promise<EmbedBuilder|null> {
 	let predicted = false;
 	let nextBanners : (typeof BannerModel)[] = await BannerModel.findNext(count);
 	// if the existing data for announced banners is insufficient, try to predict the next banners based on japanese dates
@@ -1063,9 +1061,7 @@ async function execBannerNext(count:number) : Promise<MessageEmbed|null> {
 	if(predicted)
 		embed.setFooter({ text: `🇯🇵 Prediction based on japanese dates and recent date difference of ${dayOffset} days.` })
 
-	// TODO fix this workaround?
-	let e : MessageEmbed = new MessageEmbed(embed.toJSON());
-	return e;
+	return embed;
 }
 
 // returns the new number of servants and the new number of banners in the database
@@ -1169,7 +1165,7 @@ module.exports = {
 				.setDescription('Refreshes Da Vinci\'s summoning banner database. This takes a minute, don\'t spam!')
 			)
 		),
-	async execute(interaction:Discord.CommandInteraction) {
+	async execute(interaction:Discord.ChatInputCommandInteraction) {
 		const cmdGroup = interaction.options.getSubcommandGroup();
 		const cmd = interaction.options.getSubcommand();
 		if(cmdGroup == 'banner')

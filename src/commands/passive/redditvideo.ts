@@ -154,7 +154,7 @@ export async function execute(message: Discord.Message, url: string) {
 
     await mux.catch(error => console.error('Failed muxing.', error));;
 
-    const attachment = new Discord.MessageAttachment(outPath, `${filename}.mp4`);
+    const attachment = new Discord.AttachmentBuilder(outPath, { name: `${filename}.mp4`});
     await message.reply({files: [attachment], allowedMentions: {repliedUser: false}})
         .catch(error => console.error("Failed to upload video to Discord.", error));
 }
