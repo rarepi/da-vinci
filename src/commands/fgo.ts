@@ -1066,7 +1066,7 @@ async function execBannerRefresh() : Promise<[number, number]> {
 			}, {
 				//logging: console.log,
 			});
-		if(createdS) console.log(`Created Servant: [${s.id}] ${s.name}`);	// always null for sqlite
+		if(createdS) console.log(`Created Servant: [${s.id}] ${s.name}`);
 		//else console.log(`${servant.name} has not been created!`)
 	}
 	let scount = await ServantModel.count();
@@ -1096,7 +1096,7 @@ async function execBannerRefresh() : Promise<[number, number]> {
 				console.log(`Added Servant [${servant.id}] ${servant.name} to Banner [${b.id}] ${b.name}.`);
 			}
 		}
-		if(createdB) console.log(`Created Banner: [${b.id}] ${b.name}`); // always null for sqlite
+		if(createdB) console.log(`Created Banner: [${b.id}] ${b.name}`);
 		//else console.log(`${servant.name} has not been created!`)
 	}
 	let bcount = await BannerModel.count();
