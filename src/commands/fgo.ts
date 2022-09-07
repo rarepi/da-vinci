@@ -945,24 +945,14 @@ async function fetchBanners() : Promise<Banner[]> {
 		banner.na_end_date = b.field_na_end_date[0]?.value ? new Date(b.field_na_end_date[0]?.value + " 20:59:00 PDT") : undefined;
 		banner.na_available = b.field_available_in_na[0]?.value;
 
-		// // gamepress does not provide exact times at the moment, so this manually sets the usual banner start and end times if they're at 0.
-		// if(banner.na_start_date.getHours() == 0) {
-		// 	banner.na_start_date.setHours(1);
-		// }
-		// console.log(banner.na_start_date.getHours());
-		// if(banner.na_end_date.getHours() == 0) {
-		// 	banner.na_end_date.setHours(20);
-		// 	banner.na_end_date.setMinutes(59);
-		// }
-
 		for(const servant_entry of b.field_servant_profile_future_ban) {
 			const servant_id = servant_entry.field_banner_servant[0]?.target_id;
-			banner.servants.add(servant_id);
+			if(servant_id)
+				banner.servants.add(servant_id);
 		}
 
 		banners.push(banner);
 	}
-
 	return banners;
 }
 
@@ -971,34 +961,17 @@ async function execBannerCurrent() : Promise<EmbedBuilder|null> {
 	if(currentBanners.length <= 0)
 		return null;
 
-
 	let embed = new EmbedBuilder()
-	.setTitle('Currently active summoning banners:')
-	.setURL('https://gamepress.gg/grandorder/summon-banner-list')
-	//.setAuthor({ name: 'Test Author', iconURL: 'https://i.imgur.com/AfFp7pu.png', url: 'https://gamepress.gg/grandorder/summon-banner-list'})
-	//.setDescription('Test Description')
-	//.setThumbnail('https://i.imgur.com/AfFp7pu.png')
-	// .addFields(
-	// 	{ name: 'Regular field title', value: 'Some value here' },
-	// 	{ name: '\u200B', value: '\u200B' },
-	// 	{ name: 'Inline field title', value: 'Some value here', inline: true },
-	// 	{ name: 'Inline field title', value: 'Some value here', inline: true },
-	// )
-	// .addFields({ name: 'Inline field title', value: 'Some value here', inline: true })
-	//.setImage('https://i.imgur.com/AfFp7pu.png')
-	//.setTimestamp()
-	//.setFooter({ text: 'Some footer text here', iconURL: 'https://i.imgur.com/AfFp7pu.png' });
+		.setTitle('Currently active summoning banners:')
+		.setURL('https://gamepress.gg/grandorder/summon-banner-list');
 	
-
 	for(let i=0; i < currentBanners.length;i++) {
 		const b = currentBanners[i];
-		embed.addFields( {
-			name: 'Summoning Banner', value: b.name
-		}, {
-			name: ':flag_de: Start Date', value: (b.na_start_date as Date).toLocaleString('de-DE', {timeZone: "Europe/Berlin"}), inline: true
-		}, {
-			name: ':flag_de: End Date', value: (b.na_end_date as Date).toLocaleString('de-DE', {timeZone: "Europe/Berlin"}), inline: true
-		})
+		embed.addFields(
+			{ name: 'Summoning Banner', value: b.name },
+			{ name: ':flag_de: Start Date', value: (b.na_start_date as Date).toLocaleString('de-DE', {timeZone: "Europe/Berlin"}), inline: true },
+			{ name: ':flag_de: End Date', value: (b.na_end_date as Date).toLocaleString('de-DE', {timeZone: "Europe/Berlin"}), inline: true }
+		);
 		// add spacer if there are further items
 		if(i < currentBanners.length-1) {
 			embed.addFields({ name: '\u200B', value: '\u200B' })
@@ -1067,22 +1040,19 @@ async function execBannerNext(count:number) : Promise<EmbedBuilder|null> {
 // returns the new number of servants and the new number of banners in the database
 async function execBannerRefresh() : Promise<[number, number]> {
 	let servants : Servant[] = await fetchServants();
-	console.log(`Syncing ${servants.length} servants to database ...`)
+	console.log(`Syncing ${servants.length} servants to database ...`);
 	for(const servant of servants) {
 		// create any new occuring Classes
 		let [c, createdC] = servant.class ? await ClassModel.findOrCreate({
-			where: {
-				name: servant.class
-			}
-		}) : [undefined, false];
-		if(createdC) console.log(`Created Class: ${c.name}`)
+				where: {
+					name: servant.class
+				}
+			}) : [undefined, false];
+		if(createdC)
+			console.log(`Created Class: ${c.name}`);
 
 		// create any new occuring servants
-		let [s, createdS] = await ServantModel.findOrCreate({
-			where: {
-				id: servant.id	// ignoring variants / duplicates
-			},
-			defaults: {
+		let [s, createdS] = await ServantModel.upsert({
 				id: servant.id,
 				name: servant.name,
 				url: servant.url,
@@ -1093,9 +1063,10 @@ async function execBannerRefresh() : Promise<[number, number]> {
 				card3: servant.deck?.[3],
 				card4: servant.deck?.[4],
 				rarity: servant.rarity
-			},
-		});
-		if(createdS) console.log(`Created Servant: [${s.id}] ${s.name}`);
+			}, {
+				//logging: console.log,
+			});
+		if(createdS) console.log(`Created Servant: [${s.id}] ${s.name}`);	// always null for sqlite
 		//else console.log(`${servant.name} has not been created!`)
 	}
 	let scount = await ServantModel.count();
@@ -1105,11 +1076,7 @@ async function execBannerRefresh() : Promise<[number, number]> {
 	console.log(`Syncing ${banners.length} banners to database ...`)
 	for(const banner of banners) {
 		// create any new occuring banners
-		let [b, createdB] = await BannerModel.findOrCreate({
-			where: {
-				id: banner.id
-			},
-			defaults: {
+		let [b, createdB] = await BannerModel.upsert({
 				id: banner.id,
 				name: banner.name,
 				img: banner.img,
@@ -1119,13 +1086,17 @@ async function execBannerRefresh() : Promise<[number, number]> {
 				na_start_date: banner.na_start_date,
 				na_end_date: banner.na_end_date,
 				na_available: banner.na_available
-			}
-		});
+			}, {
+				//logging: console.log,
+			});
 		for(const sid of banner.servants) {
-			if(createdB || !(await b.hasServant(await ServantModel.findByPk(sid))) )	// if the banner already existed, check if servant is already on its list
-				await b.addServant(sid);
+			let servant = await ServantModel.findByPk(sid);
+			if( !(await b.hasServant(servant)) ) {	// check if servant is already on its list
+				await b.addServant(servant);
+				console.log(`Added Servant [${servant.id}] ${servant.name} to Banner [${b.id}] ${b.name}.`);
+			}
 		}
-		if(createdB) console.log(`Created Banner: [${b.id}] ${b.name}`);
+		if(createdB) console.log(`Created Banner: [${b.id}] ${b.name}`); // always null for sqlite
 		//else console.log(`${servant.name} has not been created!`)
 	}
 	let bcount = await BannerModel.count();
