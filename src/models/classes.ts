@@ -1,7 +1,7 @@
 import Sequelize, { CreationOptional, InferAttributes, InferCreationAttributes, Model } from 'sequelize';
 
 // imported by db
-export = function(sequelize : Sequelize.Sequelize) {
+module.exports = function(sequelize : Sequelize.Sequelize) {
     class Class extends Model<InferAttributes<Class>, InferCreationAttributes<Class>> {
         declare id: CreationOptional<number>;
         declare name: string;

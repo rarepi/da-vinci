@@ -1,4 +1,4 @@
-import Sequelize, { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, Model } from 'sequelize';
+import Sequelize, { CreationOptional, InferAttributes, InferCreationAttributes, Model, Op } from 'sequelize';
 
 // imported by db
 module.exports = function(sequelize : Sequelize.Sequelize) {
@@ -13,7 +13,9 @@ class Servant extends Model<InferAttributes<Servant>, InferCreationAttributes<Se
     declare card3: CreationOptional<string>;
     declare card4: CreationOptional<string>;
     declare rarity: CreationOptional<number>;
+    static models: any;
     static associate(models: any) {
+        this.models = models;
         Servant.belongsTo(models.Class, { 
             foreignKey: {
                 name: 'class',
@@ -22,6 +24,14 @@ class Servant extends Model<InferAttributes<Servant>, InferCreationAttributes<Se
         }),
         Servant.belongsToMany(models.Banner, {
             through: models.BannerServants
+        })
+    }
+
+    static findByName(name:string) : Promise<Servant[]>{
+        let nameLower = name.toLowerCase();
+        return Servant.findAll({
+            logging: console.debug,
+            where: sequelize.where(sequelize.fn('LOWER', sequelize.col('name')), 'LIKE', `%${nameLower}%`)
         })
     }
 }

@@ -12,17 +12,16 @@ const parseDialogues = async () => {
     // strip the html of a lot of unneeded data
     let match_html_clean = rgx_stripped.exec(html_full);
     if(match_html_clean == null) {
-        console.log("ERROR: rq failed to retrieve cleaned up html page!");
+        console.error("parseDialogues: rq failed to retrieve cleaned up html page!");
         return;
     }
     let html_clean = match_html_clean[0]
     let match_quote = rgx_quote.exec(html_clean);
     if(match_quote == null) {
-        console.log("Error: rq dialogue regex returned an empty result!");
+        console.error("parseDialogues: rq dialogue regex returned an empty result!");
         return;
     }
     while((match_quote = rgx_quote.exec(html_clean)) !== null) {
-        //console.log(`Found: [${match[1]} , ${match[2]}`);
         let quote:string = match_quote[1].replace(/(?:<br \/>)|(?:<p>)/g, ""); // replace white space tags inbetween the quote
         let audio_url:string = match_quote[2];
         dialogues.push([quote, audio_url]);
@@ -44,8 +43,6 @@ module.exports = {
         }
         await interaction.deferReply();
         let rnd = Math.floor(Math.random() * dialogues.length);
-        //console.log(dialogues[rnd][0]);
-        //console.log(dialogues[rnd][1]);
         let messageOptions:Discord.InteractionReplyOptions = {
             content: `${dialogues[rnd][0]}`,
             files: [{

@@ -1,9 +1,9 @@
-import { Sequelize, Transaction } from 'sequelize';
+import { Sequelize } from 'sequelize';
 import fs from 'fs';
 
 const sequelize = new Sequelize({
     dialect: 'sqlite',
-    //logging: console.log,
+    //logging: console.debug,
     logging: false,
     storage: 'db/servants.db',
     //transactionType: Transaction.TYPES.IMMEDIATE, // https://github.com/sequelize/sequelize/issues/10304
@@ -27,10 +27,10 @@ Object.keys(db).forEach((modelName:string) => {
   }
 });
 
-console.log("Syncing DB")
+console.info("Syncing DB")
 sequelize.sync()
   .catch((err) => {
-    console.log(err);
+    console.error(err);
     process.exit();
   });
 

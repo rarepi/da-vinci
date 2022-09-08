@@ -9,6 +9,10 @@ import { clientId, guildId, token } from './config.json';
 import db from './db'
 //const {command_prefix: COMMAND_PREFIX} = require('../config.json');
 
+const CONSOLE_DEBUG = false;
+
+if(!CONSOLE_DEBUG)
+    console.debug = function(){ }
 
 /*
     setup Discord client
@@ -23,7 +27,7 @@ const client = new Discord.Client({
 
 // runs once after login
 client.once('ready', () => {
-    console.log('Ready!');
+    console.info('Ready!');
 });
 
 // chat log: print every text message to console
@@ -51,12 +55,11 @@ client.on('interactionCreate', interaction => {
     console.log(`APP_CMD [${timestamp} ${channelName}] ${username} : /${commandLine}`);
 });
 
-
-
 /*
     setup slash commands
 */
 interface Command {
+    prepare?: Function,
     data: SlashCommandBuilder,
     execute: Function
 }
@@ -68,6 +71,9 @@ async function collectCommands() {
 
     for (const file of commandFiles) {
         const command:Command = await import(`./commands/${file}`) as unknown as Command; // use Command interface to assume the existence of its properties
+        if(command.prepare != undefined) {  // allows the call of an async function inside a command file
+            await command.prepare();
+        }
         const data:SlashCommandBuilder = command.data;
         // command name : exported module
         commands.set(data.name, command);
@@ -82,13 +88,13 @@ function registerCommands() {
 
     for (const cmd of commands) {
         commands_json.push(cmd[1].data.toJSON());
-        console.log(`Added ${cmd[0]} to command register.`)
+        console.info(`Added ${cmd[0]} to command register.`)
     }
 
     const rest = new REST({ version: '10' }).setToken(token);
 
     rest.put(Routes.applicationCommands(clientId), { body: commands_json })
-        .then(() => console.log('Successfully registered application commands.'))
+        .then(() => console.info('Successfully registered application commands.'))
         .catch(console.error);
 }
 
@@ -106,8 +112,6 @@ client.on('interactionCreate', async (interaction) => {
 	}
 });
 
-
-
 /*
     setup passive functions
 */
@@ -119,7 +123,7 @@ client.on('messageCreate', message => {
     const match = REDDIT_URL_RGX.exec(message.content);
     if(match) {
         let reddit_url = match[1];
-        console.log(`Reddit link detected: ${reddit_url}`);
+        console.debug(`Reddit link detected: ${reddit_url}`);
         redditvideo.execute(message, reddit_url);
     } else return;
 });
@@ -131,7 +135,7 @@ client.on('messageCreate', message => {
     const match = STEAM_URL_RGX.exec(message.content);
     if(match) {
         let steam_url = match[1];
-        console.log(`Steam link detected: ${steam_url}`);
+        console.debug(`Steam link detected: ${steam_url}`);
         steamurl.execute(message, steam_url);
     } else return;
 });
@@ -139,6 +143,6 @@ client.on('messageCreate', message => {
 /*
     setup database
 */
-console.log(db)
+console.debug(db)
 
 client.login(token);
