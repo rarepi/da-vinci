@@ -15,7 +15,7 @@ function dateDifferenceInDays(date1: Date, date2: Date) : number {
 /**
  * Represents a summoning banner in FGO
  */
-    class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Banner>> {
+class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Banner>> {
     declare id: number;
     declare name: string;
     declare img: string;
@@ -36,7 +36,7 @@ function dateDifferenceInDays(date1: Date, date2: Date) : number {
             console.error(`Servant model is missing.`)
         this.models = models;
         Banner.belongsToMany(models.Servant, {
-            through: models.BannerServants
+            through: models.BannerServant
         })
     }
 
@@ -231,8 +231,7 @@ function dateDifferenceInDays(date1: Date, date2: Date) : number {
     }
 }
 
-// imported by db
-module.exports = function(sequelize : Sequelize.Sequelize) : typeof Banner {
+export default function(sequelize : Sequelize.Sequelize) : typeof Banner {
     Banner.init({
         id: {
             type: Sequelize.INTEGER.UNSIGNED,
@@ -277,6 +276,5 @@ module.exports = function(sequelize : Sequelize.Sequelize) : typeof Banner {
         timestamps: false,
         sequelize,
     })
-
     return Banner;
 }

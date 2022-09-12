@@ -3,16 +3,16 @@ import Sequelize, { InferAttributes, InferCreationAttributes, Model } from 'sequ
 /**
  * Represents the association table for the Many-to-Many relationship between Banner and Servant
  */
-    class BannerServants extends Model<InferAttributes<BannerServants>, InferCreationAttributes<BannerServants>> {
+class BannerServant extends Model<InferAttributes<BannerServant>, InferCreationAttributes<BannerServant>> {
 }
 
 // imported by db
-module.exports = function(sequelize : Sequelize.Sequelize) {
-    BannerServants.init({
+export default function(sequelize : Sequelize.Sequelize) {
+    BannerServant.init({
     }, { 
         timestamps: false,
         sequelize,
     })
 
-    return BannerServants;
+    return BannerServant;
 }

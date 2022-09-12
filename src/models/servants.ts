@@ -3,7 +3,7 @@ import Sequelize, { CreationOptional, InferAttributes, InferCreationAttributes, 
 /**
  * Represents a servant character in FGO
  */
-    class Servant extends Model<InferAttributes<Servant>, InferCreationAttributes<Servant>> {
+class Servant extends Model<InferAttributes<Servant>, InferCreationAttributes<Servant>> {
     declare id: number;
     declare name: string;
     declare url: CreationOptional<string>;
@@ -28,7 +28,7 @@ import Sequelize, { CreationOptional, InferAttributes, InferCreationAttributes, 
             }
         }),
         Servant.belongsToMany(models.Banner, {
-            through: models.BannerServants
+            through: models.BannerServant
         })
     }
 
@@ -47,7 +47,7 @@ import Sequelize, { CreationOptional, InferAttributes, InferCreationAttributes, 
 }
 
 // imported by db
-module.exports = function(sequelize : Sequelize.Sequelize) {
+export default function(sequelize : Sequelize.Sequelize) {
     Servant.init({
         id: {
             type: Sequelize.INTEGER.UNSIGNED,

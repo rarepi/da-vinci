@@ -14,7 +14,7 @@ class Class extends Model<InferAttributes<Class>, InferCreationAttributes<Class>
 }
 
 // imported by db
-module.exports = function(sequelize : Sequelize.Sequelize) {
+export default function(sequelize : Sequelize.Sequelize) {
     Class.init({
         id: {
             type: Sequelize.INTEGER.UNSIGNED,

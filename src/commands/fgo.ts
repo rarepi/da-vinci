@@ -4,9 +4,9 @@ import Axios from 'axios';
 import db from '../db';
 
 // TODO: find a way to properly use Sequelize's typings within typescript
-const ClassModel : any = db['Class'];
-const ServantModel : any = db['Servant'];
-const BannerModel : any = db['Banner'];
+const ClassModel = db.Class;
+const ServantModel = db.Servant;
+const BannerModel = db.Banner;
 
 const DISCORD_API_LIMIT_EMBED_FIELDS = 25;	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits
 const GAMEPRESS_URL_BANNERS = "https://gamepress.gg/grandorder/summon-banner-list"
