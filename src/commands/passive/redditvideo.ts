@@ -96,7 +96,7 @@ export async function execute(message: Discord.Message, url: string) {
     // use reddit's video filename as output filename
     let filename:string = /(?<=^https?:\/\/v\.redd\.it\/)\w+(?=\/DASH_\d+\.mp4\S*$)/.exec(reddit_video)?.[0] ?? "";
     if(filename.length <= 0) {
-        console.log(`Failed to determine output filename.`);
+        console.error(`Failed to determine output filename.`);
         return;
     }
 
@@ -109,7 +109,7 @@ export async function execute(message: Discord.Message, url: string) {
     if(videoSize && audioSize)
         estimatedFileSize = (videoSize + audioSize)/(1024**2);
     if(estimatedFileSize > 8) {
-        console.log(`Reddit Download skipped due to filesize of ${estimatedFileSize}MB. Discord allows uploads of up to 8MB for bots.`)
+        console.info(`Reddit Download skipped due to filesize of ${estimatedFileSize}MB. Discord allows uploads of up to 8MB for bots.`)
         return;
     }
 
@@ -154,8 +154,8 @@ export async function execute(message: Discord.Message, url: string) {
         });
 
         p.stdout.on('close', (data: any) => {
-            console.log(pOut);
-            console.log(`Muxing completed.`);
+            console.info(pOut);
+            console.info(`Muxing completed.`);
             success();
         });
 
