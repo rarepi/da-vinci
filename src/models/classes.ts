@@ -1,20 +1,20 @@
 import Sequelize, { CreationOptional, InferAttributes, InferCreationAttributes, Model } from 'sequelize';
 
+class Class extends Model<InferAttributes<Class>, InferCreationAttributes<Class>> {
+    declare id: CreationOptional<number>;
+    declare name: string;
+    static associate(models: any) {
+/*             Class.hasMany(models.Servant, {
+            foreignKey: {
+                name: "class",
+                allowNull: true,
+            }
+        }); */
+    }
+}
+
 // imported by db
 module.exports = function(sequelize : Sequelize.Sequelize) {
-    class Class extends Model<InferAttributes<Class>, InferCreationAttributes<Class>> {
-        declare id: CreationOptional<number>;
-        declare name: string;
-        static associate(models: any) {
-/*             Class.hasMany(models.Servant, {
-                foreignKey: {
-                    name: "class",
-                    allowNull: true,
-                }
-            }); */
-        }
-    }
-
     Class.init({
         id: {
             type: Sequelize.INTEGER.UNSIGNED,
