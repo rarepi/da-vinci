@@ -7,11 +7,16 @@ import Discord from "discord.js"
 const PATH_TO_DL_DIR = Path.resolve("./", 'temp');
 Fs.promises.mkdir(PATH_TO_DL_DIR, { recursive: true }).catch(console.error);
 
+/**
+ * Obtains the file size of the provided URL
+   * @param {string} url URL of the file
+   * @returns {number} The file size
+ */
 async function requestFileSize (url: string): Promise<number> {
     let fileSize: number = 0;
     const response = await Axios({
-    url,
-    method: 'HEAD'
+        url,
+        method: 'HEAD'
     })
     .catch(error => {
         if(error.response.status == 403)
@@ -25,21 +30,27 @@ async function requestFileSize (url: string): Promise<number> {
     return fileSize;
 }
 
-async function downloadFile (url: string, fileName: string): Promise<string> {
-    const path = Path.resolve(PATH_TO_DL_DIR, fileName)
+/**
+ * Downloads the provided URL and writes it to disk.
+   * @param {string} url URL of the file
+   * @param {string} filename The filename to be used when writing the file
+   * @returns {Promise<string>} Path to the downloaded file
+ */
+async function downloadFile (url: string, filename: string): Promise<string> {
+    const path = Path.resolve(PATH_TO_DL_DIR, filename)
     if (Fs.existsSync(path)) {
-        //console.log(`File already exists: Skipping download of ${url}`);
+        console.info(`File '${path}' already exists. Skipping download of '${url}'.`);
         return path;
     }
 
     const writer = Fs.createWriteStream(path)
     const {data, headers} = await Axios({
-    url,
-    method: 'GET',
-    responseType: 'stream',
+        url,
+        method: 'GET',
+        responseType: 'stream',
     })
 
-    data.on('data', (chunk: string | any[]) => {
+    data.on('data', (chunk: any[]) => {
         process.stdout.clearLine(0);
         process.stdout.cursorTo(0);
         process.stdout.write(`Received ${chunk.length} bytes of data.`);
@@ -58,6 +69,12 @@ async function downloadFile (url: string, fileName: string): Promise<string> {
     })
 }
 
+/**
+ * Uploads the video of the provided reddit post as a proper video file
+ * @param {Discord.Message} message The Discord message that triggered this function
+ * @param {string} url The URL to the reddit video post
+ * @todo rework the way the json data structure is used here
+ */
 export async function execute(message: Discord.Message, url: string) {
     const result = (await Axios.get(`${url}.json`));
 

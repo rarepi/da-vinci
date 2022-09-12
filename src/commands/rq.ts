@@ -4,7 +4,10 @@ import Axios from 'axios';
 
 let dialogues: string[][] = [];
 
-const parseDialogues = async () => {
+/**
+ * Extracts quotes from FGO's Da Vinci and extracts them into the top level variable dialogues, which can then be read by the Discord command
+ */
+async function parseDialogues() {
     const rgx_stripped = /^([\s\S]*?)Dialogue Related Servants/gu
     const rgx_quote =  /NA(?:<\/?[\s\S]+?>[\s]*(?:TL)?)+([\s\S]+?)(?:<\/[\s\S]+?>\s*?)[\s\S]+?<audio src="(https?:\S+?.ogg)/gu;
     const html_full = (await Axios.get('https://fategrandorder.fandom.com/wiki/Sub:Leonardo_Da_Vinci/Dialogue')).data;
@@ -33,6 +36,10 @@ module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('rq')
 		.setDescription('Posts a random FGO dialogue quote by Da Vinci.'),
+    /**
+	 * Executes the command
+	 * @param {Discord.ChatInputCommandInteraction} interaction The Discord interaction that called this command
+	 */
 	async execute(interaction:Discord.CommandInteraction) {
         if(dialogues.length <= 0) {
             interaction.reply({ 

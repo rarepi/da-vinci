@@ -3,13 +3,17 @@ import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, SelectMenuBuilder 
 import Axios from 'axios';
 import db from '../db';
 
-const ClassModel = db['Class'];
-const ServantModel = db['Servant'];
-const BannerModel = db['Banner'];
+// TODO: find a way to properly use Sequelize's typings within typescript
+const ClassModel : any = db['Class'];
+const ServantModel : any = db['Servant'];
+const BannerModel : any = db['Banner'];
 
-const DISCORD_API_LIMIT_EMBED_FIELDS = 25;
+const DISCORD_API_LIMIT_EMBED_FIELDS = 25;	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits
 const GAMEPRESS_URL_BANNERS = "https://gamepress.gg/grandorder/summon-banner-list"
 
+/**
+ * Helper class to temporarily store servant data
+ */
 class Servant {
 	id!: number;
 	url!: string;
@@ -19,6 +23,9 @@ class Servant {
 	rarity?: number;
 }
 
+/**
+ * Helper class to temporarily store summoning banner data
+ */
 class Banner {
 	id!: number;
 	name!: string;
@@ -32,6 +39,9 @@ class Banner {
 	servants: Set<number> = new Set(); // Using Set to get rid of duplicates (we only track if a servant is on the banner, not how often)
 }
 
+/**
+ * Interface describing gamepress' JSON data structure for servant data
+ */
 interface ServantJson {
 	nid: [{ value: number }],
 	title: [{ value: string}],
@@ -860,6 +870,9 @@ interface ServantJson {
 	field_star: [{ tid: [{ value: number }], name: [{ value: number }] }]
 }
 
+/**
+ * Interface describing gamepress' JSON data structure for summoning banner data
+ */
 interface BannerJson {
 	title: [{ value: string }],
 	field_available_in_na: [{ value: boolean }],
@@ -896,7 +909,10 @@ interface BannerJson {
 	field_sim_number: [{ value: number }]
 }  
 
-// returns Objects of every FGO servant extracted from gamepress data
+/**
+ * Extracts currently available servant data from gamepress
+ * @returns {Promise<Servant[]>}
+ */
 async function fetchServants() : Promise<Servant[]> {
 	let servants : Servant[] = [];
 
@@ -923,7 +939,10 @@ async function fetchServants() : Promise<Servant[]> {
 	return servants;
 }
 
-// returns Objects of every FGO summoning banner extracted from gamepress data
+  /**
+   * Extracts currently available summoning banner data from gamepress
+   * @returns {Promise<Banner[]>}
+   */
 async function fetchBanners() : Promise<Banner[]> {
 	let banners : Banner[] = [];
 
@@ -959,6 +978,15 @@ async function fetchBanners() : Promise<Banner[]> {
 	return banners;
 }
 
+/**
+ * Creates Discord embeds from Banner data according to Discord's API's size limitations.
+ * Besides the amount of banners and thus fields generated, the provided parameters themselves are expected to be within Discord's API's Embed Limits described at: https://discord.com/developers/docs/resources/channel#embed-object-embed-limits
+   * @param {(typeof BannerModel)[]} banners An array of summoning banners fetched from database
+   * @param {string} [title] Title of the embed, displayed on the first embed only (up to 256 characters)
+   * @param {string} [url] URL for the embed title, displayed on the first embed only
+   * @param {string} [footer] Footer of the embed, displayed on the first embed only (up to 2048 characters)
+   * @returns {EmbedBuilder[]} Embeds describing the summoning banners
+ */
 function bannersToEmbeds(banners: (typeof BannerModel)[], title?: string, url?: string, footer?: string) : EmbedBuilder[] {
 	const FIELDS_PER_BANNER = 4;	// including spacer
 	const BANNERS_PER_EMBED = Math.floor(DISCORD_API_LIMIT_EMBED_FIELDS / FIELDS_PER_BANNER);
@@ -990,40 +1018,48 @@ function bannersToEmbeds(banners: (typeof BannerModel)[], title?: string, url?: 
 	return embeds;
 }
 
-async function execBannerCurrent() : Promise<EmbedBuilder|null> {
+/**
+ * Fetches all currently on NA servers active summoning banners and provides the data as an Discord embed.
+   * @returns {Promise<EmbedBuilder[]>} Embeds describing the currently active summoning banners
+ */
+async function execBannerCurrent() : Promise<EmbedBuilder[]> {
 	let currentBanners : (typeof BannerModel)[] = await BannerModel.findCurrent();
-	if(currentBanners.length <= 0)
-		return null;
 
-	let embed = bannersToEmbeds(
+	let embeds = bannersToEmbeds(
 		currentBanners,
 		'Currently active summoning banners:',
 		GAMEPRESS_URL_BANNERS
-	)[0];	// TODO currently no follow ups for current banners
-	return embed;
+	);
+	return embeds;
 }
 
-async function execBannerNext(count:number) : Promise<EmbedBuilder|null> {
+/**
+ * Fetches all on NA servers upcoming summoning banners and provides the data as an Discord embed. If needed, NA dates are predicated based on JP dates.
+   * @param {number} count Number of summoning banners to fetch
+   * @returns {EmbedBuilder[]} Embeds describing the summoning banners
+ */
+async function execBannerNext(count:number) : Promise<EmbedBuilder[]> {
 	let nextBanners : (typeof BannerModel)[] = await BannerModel.findNext(count);
+
 	// if the existing data for announced banners is insufficient, try to predict the next banners based on japanese dates
 	let dayOffset : number|undefined = undefined;
 	if(nextBanners.length < count) {
 		[nextBanners, dayOffset] = await BannerModel.findNextPredicted(count);
 	}
 
-	if(nextBanners.length <= 0)
-		return null;
-
-	let embed = bannersToEmbeds(
+	let embeds = bannersToEmbeds(
 		nextBanners,
 		'Upcoming summoning banners:',
 		GAMEPRESS_URL_BANNERS,
 		dayOffset ? `🇯🇵 Prediction based on japanese dates and recent date difference of ${dayOffset} days.` : undefined
-	)[0]; // TODO currently no follow ups for upcoming banners
-	return embed;
+	);
+	return embeds;
 }
 
-// returns the new number of servants and the new number of banners in the database
+/**
+ * Synchronizes the local database with gamepress' data on both servants and summoning banners
+   * @returns {Promise<[number, number]>} the new number of servants and the new number of banners in the database
+ */
 async function execBannerRefresh() : Promise<[number, number]> {
 	let servants : Servant[] = await fetchServants();
 	console.info(`Syncing ${servants.length} servants to database ...`);
@@ -1119,7 +1155,7 @@ module.exports = {
 			)
 			.addSubcommand(cmd => cmd
 				.setName('refresh')
-				.setDescription('Refreshes Da Vinci\'s summoning banner database. This takes a minute, don\'t spam. :slight_smile:')
+				.setDescription('Refreshes Da Vinci\'s summoning banner database. This takes a minute, don\'t spam.')
 			)
 			.addSubcommand(cmd => cmd
 				.setName(`servant`)
@@ -1131,6 +1167,11 @@ module.exports = {
 				)
 			)
 		),
+	/**
+	 * Executes one of many (sub-)commands
+	 * @param {Discord.ChatInputCommandInteraction} interaction The Discord interaction that called this command 
+	 * @todo break this up into a more efficient data structure, similar to the way top level commands are already handled
+	 */
 	async execute(interaction:Discord.ChatInputCommandInteraction) {
 		const cmdGroup = interaction.options.getSubcommandGroup();
 		const cmd = interaction.options.getSubcommand();
@@ -1140,15 +1181,15 @@ module.exports = {
 
 				let count = interaction.options.getInteger('count') ?? 1;
 
-				let embed = await execBannerNext(count);
-				if(!embed) {
+				let embeds = await execBannerNext(count);
+				if(!embeds || embeds.length <= 0) {
 					await interaction.editReply('I couldn\'t find any upcoming summoning banners. So either FGO is officially dead or I messed up... :skull:');
 					return;
 				}
 
 				// finalize confirmation message
 				let messageOptions:Discord.InteractionReplyOptions = {
-					embeds: [embed],
+					embeds: embeds,
 					ephemeral: true
 				};
 				await interaction.editReply(messageOptions);
@@ -1156,15 +1197,15 @@ module.exports = {
 			} else if(cmd === 'current') {
 				await interaction.deferReply({ephemeral: true});
 
-				let embed = await execBannerCurrent();
-				if(!embed) {
-					await interaction.editReply('No limited time Summoning Banners are currently active.');
+				let embeds = await execBannerCurrent();
+				if(!embeds || embeds.length <= 0) {
+					await interaction.editReply('No limited time summoning banners are currently active.');
 					return;
 				}
 
 				// finalize confirmation message
 				let messageOptions:Discord.InteractionReplyOptions = {
-					embeds: [embed],
+					embeds: embeds,
 					ephemeral: true
 				};
 				await interaction.editReply(messageOptions);
