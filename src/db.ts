@@ -1,8 +1,8 @@
 import Sequelize from 'sequelize';
 import fs from 'fs';
 
-export const DATABASE_UPDATE_INTERVAL = 12 * (1000 * 60 * 60);	// in milliseconds
-export const DATABASE_REV_FILE = 'db/databaseRevision.json';
+const DATABASE_UPDATE_INTERVAL = 12 * (1000 * 60 * 60);	// in milliseconds
+const DATABASE_REV_FILE = 'db/databaseRevision.json';
 export interface DatabaseRevision {
     Servant: number | undefined,
     Banner: number | undefined,
@@ -41,46 +41,63 @@ Object.keys(models).forEach((modelName: string) => {
 
 export default models;
 
-export function runDatabaseScheduler(databaseUpdateTask: () => void) {
-    if (DATABASE_UPDATE_INTERVAL > 2147483647) {
-        console.error(`Invalid database update interval. Aborting scheduler.`)
-        return;
-    }
-    setInterval(databaseUpdateTask, DATABASE_UPDATE_INTERVAL);
-    console.info(`Starting database update scheduler. Database update scheduled for every ${DATABASE_UPDATE_INTERVAL / 1000 / 60 / 60} hours.`);
-    return
-}
-
-export function setDatabaseRevision(servant?: number, banner?: number, timeofUpdate?: number) {
-    let databaseRevision: DatabaseRevision | undefined = getDatabaseRevision();
-    if (!databaseRevision) {
-        databaseRevision = {
-            Servant: servant,
-            Banner: banner,
-            lastUpdate: timeofUpdate
+export class Database {
+    static runDatabaseScheduler(databaseUpdateTask: () => void) {
+        if (DATABASE_UPDATE_INTERVAL > 2147483647) {
+            console.error(`Invalid database update interval. Aborting scheduler.`)
+            return;
         }
-    } else {
-        if (servant) databaseRevision.Servant = servant;
-        if (banner) databaseRevision.Banner = banner;
-        if (timeofUpdate) databaseRevision.lastUpdate = timeofUpdate;
+        setInterval(databaseUpdateTask, DATABASE_UPDATE_INTERVAL);
+        console.info(`Starting database update scheduler. Database update scheduled for every ${DATABASE_UPDATE_INTERVAL / 1000 / 60 / 60} hours.`);
+        return
     }
 
-    fs.writeFile(DATABASE_REV_FILE, JSON.stringify(databaseRevision), 'utf8', (err) => {
-        if (err) { console.error(err); }
-        else { console.log("Database revisions have been updated."); }
-    });
-}
-
-export function getDatabaseRevision(): DatabaseRevision | undefined {
-    let databaseRevision: DatabaseRevision | undefined;
-    try {
-        let data = fs.readFileSync(DATABASE_REV_FILE, 'utf8');
-        databaseRevision = JSON.parse(data);
-    } catch (error) {
-        console.warn(error);
-        console.warn(`Failed to parse "${DATABASE_REV_FILE}"`)
+    static getDatabaseRevision(): DatabaseRevision | undefined {
+        let databaseRevision: DatabaseRevision | undefined;
+        try {
+            let data = fs.readFileSync(DATABASE_REV_FILE, 'utf8');
+            databaseRevision = JSON.parse(data);
+        } catch (error:any) {
+            if(error.code !== 'ENOENT')
+                console.warn(error); // don't display the error if the file was just missing
+            console.warn(`Failed to parse "${DATABASE_REV_FILE}"`)
+        }
+        return databaseRevision;
     }
-    return databaseRevision;
+
+    static setDatabaseRevision(servant?: number, banner?: number, timeofUpdate?: number) {
+        let databaseRevision: DatabaseRevision | undefined = this.getDatabaseRevision();
+        if (!databaseRevision) {
+            databaseRevision = {
+                Servant: servant,
+                Banner: banner,
+                lastUpdate: timeofUpdate
+            }
+        } else {
+            if (servant) databaseRevision.Servant = servant;
+            if (banner) databaseRevision.Banner = banner;
+            if (timeofUpdate) databaseRevision.lastUpdate = timeofUpdate;
+        }
+
+        fs.writeFile(DATABASE_REV_FILE, JSON.stringify(databaseRevision), 'utf8', (err) => {
+            if (err) { console.error(err); }
+            else { console.log("Database revisions have been updated."); }
+        });
+    }
+
+    static isDatabaseUpToDate() : boolean {
+        const databaseRevision = this.getDatabaseRevision();
+        const updateThreshold = new Date().getTime() - DATABASE_UPDATE_INTERVAL; // current time in milliseconds minus schedule interval
+        return databaseRevision != undefined && databaseRevision.lastUpdate != undefined && databaseRevision.lastUpdate > updateThreshold;
+    }
+
+    static getRevisionPath() : string {
+        return DATABASE_REV_FILE;
+    }
+
+    static getUpdateInterval() : number {
+        return DATABASE_UPDATE_INTERVAL;
+    }
 }
 
 console.info("Syncing DB")

@@ -1,13 +1,12 @@
 import Discord from 'discord.js';
 import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, SelectMenuBuilder } from '@discordjs/builders';
 import Axios from 'axios';
-import db, { sequelize, DatabaseRevision, DATABASE_UPDATE_INTERVAL, runDatabaseScheduler, setDatabaseRevision, getDatabaseRevision } from '../db';
-import Sequelize from 'sequelize';
+import databaseModels, { sequelize, DatabaseRevision, Database } from '../db';
 
 // TODO: find a way to properly use Sequelize's typings within typescript
-const ClassModel = db.Class;
-const ServantModel = db.Servant;
-const BannerModel = db.Banner;
+const ClassModel = databaseModels.Class;
+const ServantModel = databaseModels.Servant;
+const BannerModel = databaseModels.Banner;
 
 const DISCORD_API_LIMIT_EMBED_FIELDS = 25;	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits
 
@@ -1147,13 +1146,13 @@ async function execBannerRefresh(): Promise<[number, number]> {
     let bcount = await BannerModel.count();
     console.info(`Finished syncing Banners database. (${bcount} banners)`)
 
-    setDatabaseRevision(servantDataRevision, bannerDataRevision, new Date().getTime());
+    Database.setDatabaseRevision(servantDataRevision, bannerDataRevision, new Date().getTime());
     return [scount, bcount];
 }
 
 async function databaseUpdateTask() {
-    let databaseRevision: DatabaseRevision | undefined = getDatabaseRevision();
-    const updateThreshold = new Date().getTime() - DATABASE_UPDATE_INTERVAL; // current time in milliseconds minus schedule interval
+    let databaseRevision: DatabaseRevision | undefined = Database.getDatabaseRevision();
+    const updateThreshold = new Date().getTime() - Database.getUpdateInterval(); // current time in milliseconds minus schedule interval
     if (databaseRevision?.lastUpdate && databaseRevision.lastUpdate > updateThreshold) {
         console.log("No database update necessary.");
     } else {
@@ -1172,7 +1171,7 @@ async function databaseUpdateTask() {
 
 // run once on startup
 databaseUpdateTask();
-runDatabaseScheduler(databaseUpdateTask);
+Database.runDatabaseScheduler(databaseUpdateTask);
 
 module.exports = {
     data: new SlashCommandBuilder()
