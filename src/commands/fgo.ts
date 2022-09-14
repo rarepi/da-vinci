@@ -1,7 +1,8 @@
 import Discord from 'discord.js';
 import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, SelectMenuBuilder } from '@discordjs/builders';
 import Axios from 'axios';
-import db, { DatabaseRevision, DATABASE_UPDATE_INTERVAL, runDatabaseScheduler, setDatabaseRevision, getDatabaseRevision } from '../db';
+import db, { sequelize, DatabaseRevision, DATABASE_UPDATE_INTERVAL, runDatabaseScheduler, setDatabaseRevision, getDatabaseRevision } from '../db';
+import Sequelize from 'sequelize';
 
 // TODO: find a way to properly use Sequelize's typings within typescript
 const ClassModel = db.Class;
@@ -1075,34 +1076,38 @@ async function execBannerRefresh(): Promise<[number, number]> {
     [servants, servantDataRevision] = await fetchServants();
 
     console.info(`Syncing ${servants.length} servants to database ...`);
-    for (const servant of servants) {
-        // create any new occuring Classes
-        let [c, createdC] = servant.class ? await ClassModel.findOrCreate({
-            where: {
-                name: servant.class
-            }
-        }) : [undefined, false];
-        if (createdC)
-            console.info(`Created Class: ${c.name}`);
+    const resultS = await sequelize.transaction(async (t) => {
+        for (const servant of servants) {
+            // create any new occuring Classes
+            let [c, createdC] = servant.class ? await ClassModel.findOrCreate({
+                where: {
+                    name: servant.class
+                },
+                transaction: t
+            }) : [undefined, false];
+            if (createdC)
+                console.info(`Created Class: ${c.name}`);
 
-        // create any new occuring servants
-        let [s, createdS] = await ServantModel.upsert({
-            id: servant.id,
-            name: servant.name,
-            url: servant.url,
-            class: c?.id,
-            card0: servant.deck?.[0],
-            card1: servant.deck?.[1],
-            card2: servant.deck?.[2],
-            card3: servant.deck?.[3],
-            card4: servant.deck?.[4],
-            rarity: servant.rarity
-        }, {
-            //logging: console.debug,
-        });
-        if (createdS) console.info(`Created Servant: [${s.id}] ${s.name}`);
-        //else console.info(`${servant.name} has not been created!`)
-    }
+            // create any new occuring servants
+            let [s, createdS] = await ServantModel.upsert({
+                id: servant.id,
+                name: servant.name,
+                url: servant.url,
+                class: c?.id,
+                card0: servant.deck?.[0],
+                card1: servant.deck?.[1],
+                card2: servant.deck?.[2],
+                card3: servant.deck?.[3],
+                card4: servant.deck?.[4],
+                rarity: servant.rarity
+            }, {
+                //logging: console.debug,
+                transaction: t
+            });
+            if (createdS) console.info(`Created Servant: [${s.id}] ${s.name}`);
+            //else console.info(`${servant.name} has not been created!`)
+        }
+    });
     let scount = await ServantModel.count();
     console.info(`Finished syncing Servants database. (${scount} servants)`)
 
@@ -1111,31 +1116,34 @@ async function execBannerRefresh(): Promise<[number, number]> {
     [banners, bannerDataRevision] = await fetchBanners();
 
     console.info(`Syncing ${banners.length} banners to database ...`)
-    for (const banner of banners) {
-        // create any new occuring banners
-        let [b, createdB] = await BannerModel.upsert({
-            id: banner.id,
-            name: banner.name,
-            img: banner.img,
-            guaranteed: banner.guaranteed,
-            jp_start_date: banner.jp_start_date,
-            jp_end_date: banner.jp_end_date,
-            na_start_date: banner.na_start_date,
-            na_end_date: banner.na_end_date,
-            na_available: banner.na_available
-        }, {
-            //logging: console.debug,
-        });
-        for (const sid of banner.servants) {
-            let servant = await ServantModel.findByPk(sid);
-            if (!(await b.hasServant(servant))) {	// check if servant is already on its list
-                await b.addServant(servant);
-                console.info(`Added Servant [${servant.id}] ${servant.name} to Banner [${b.id}] ${b.name}.`);
+    const resultB = await sequelize.transaction(async (t) => {
+        for (const banner of banners) {
+            // create any new occuring banners
+            let [b, createdB] = await BannerModel.upsert({
+                id: banner.id,
+                name: banner.name,
+                img: banner.img,
+                guaranteed: banner.guaranteed,
+                jp_start_date: banner.jp_start_date,
+                jp_end_date: banner.jp_end_date,
+                na_start_date: banner.na_start_date,
+                na_end_date: banner.na_end_date,
+                na_available: banner.na_available
+            }, {
+                //logging: console.debug,
+                transaction: t,
+            });
+            for (const sid of banner.servants) {
+                let servant = await ServantModel.findByPk(sid, { transaction: t });
+                if (!(await b.hasServant(servant, { transaction: t }))) {	// check if servant is already on its list
+                    await b.addServant(servant, { transaction: t });
+                    console.info(`Added Servant [${servant.id}] ${servant.name} to Banner [${b.id}] ${b.name}.`);
+                }
             }
+            if (createdB) console.info(`Created Banner: [${b.id}] ${b.name}`);
+            //else console.info(`${servant.name} has not been created!`)
         }
-        if (createdB) console.info(`Created Banner: [${b.id}] ${b.name}`);
-        //else console.info(`${servant.name} has not been created!`)
-    }
+    });
     let bcount = await BannerModel.count();
     console.info(`Finished syncing Banners database. (${bcount} banners)`)
 

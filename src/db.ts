@@ -9,7 +9,7 @@ export interface DatabaseRevision {
     lastUpdate: number | undefined,
 };
 
-const sequelize = new Sequelize.Sequelize({
+export const sequelize = new Sequelize.Sequelize({
     dialect: 'sqlite',
     //logging: console.debug,
     logging: false,
