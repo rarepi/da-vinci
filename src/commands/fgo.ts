@@ -1,7 +1,7 @@
 import Discord from 'discord.js';
 import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, SelectMenuBuilder } from '@discordjs/builders';
 import Axios from 'axios';
-import db from '../db';
+import db, {DatabaseRevision, DATABASE_UPDATE_INTERVAL, runDatabaseScheduler, setDatabaseRevision, getDatabaseRevision} from '../db';
 
 // TODO: find a way to properly use Sequelize's typings within typescript
 const ClassModel = db.Class;
@@ -9,7 +9,12 @@ const ServantModel = db.Servant;
 const BannerModel = db.Banner;
 
 const DISCORD_API_LIMIT_EMBED_FIELDS = 25;	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits
-const GAMEPRESS_URL_BANNERS = "https://gamepress.gg/grandorder/summon-banner-list"
+
+const GAMEPRESS_URL_BANNERS = "https://gamepress.gg/grandorder/summon-banner-list";
+const GAMEPRESS_RGX = {
+	servants: /sjson_dir = "(\S+\.json\?version=(\d+))"/u,	// [1] full URL to file, [2] "version" of the file
+	banners: /gjson_dir = "(\S+\.json\?version=(\d+))"/u,	// [1] full URL to file, [2] "version" of the file
+}
 
 /**
  * Helper class to temporarily store servant data
@@ -913,15 +918,17 @@ interface BannerJson {
  * Extracts currently available servant data from gamepress
  * @returns {Promise<Servant[]>}
  */
-async function fetchServants() : Promise<Servant[]> {
+async function fetchServants() : Promise<[Servant[], number|undefined]> {
 	let servants : Servant[] = [];
 
-	// all regex are written mostly dependend on gamepress' css class names
-	const rgx_servants = /sjson_dir = "(\S+\.json\S+)"/gu; // servant_json.json?version=###
-
     const html_full = (await Axios.get(GAMEPRESS_URL_BANNERS)).data;
-	let json_url:string | undefined = rgx_servants.exec(html_full)?.[1];
-	if(!json_url) throw("ERROR: Servant data file url not found.")
+	const match = GAMEPRESS_RGX.servants.exec(html_full);
+	if(!match){
+		console.error("Servant data file url not found.");
+		return [servants, undefined];
+	}
+	const json_url : string = match[1];
+	const json_version : number = Number(match[2]);
 
 	const json_file = (await Axios.get(json_url)).data as ServantJson[];
 	for(const s of json_file) {
@@ -936,22 +943,24 @@ async function fetchServants() : Promise<Servant[]> {
 		servants.push(servant);
 	}
 
-	return servants;
+	return [servants, json_version];
 }
 
   /**
    * Extracts currently available summoning banner data from gamepress
    * @returns {Promise<Banner[]>}
    */
-async function fetchBanners() : Promise<Banner[]> {
+async function fetchBanners() : Promise<[Banner[], number|undefined]> {
 	let banners : Banner[] = [];
 
-	// all regex are written mostly dependend on gamepress' css class names
-	const rgx_servants = /gjson_dir = "(\S+\.json\S+)"/gu; // servant_json.json?version=###
-
     const html_full = (await Axios.get(GAMEPRESS_URL_BANNERS)).data;
-	let json_url:string | undefined = rgx_servants.exec(html_full)?.[1];
-	if(!json_url) throw("ERROR: Banner data file url not found.")
+	const match = GAMEPRESS_RGX.banners.exec(html_full)
+	if(!match){
+		console.error(`Banner data file url not found.`);
+		return [banners, undefined];
+	}
+	const json_url:string = match[1];
+	const json_version : number = Number(match[2]);
 
 	const json_file = (await Axios.get(json_url)).data as BannerJson[];
 	for(const b of json_file) {
@@ -975,7 +984,7 @@ async function fetchBanners() : Promise<Banner[]> {
 
 		banners.push(banner);
 	}
-	return banners;
+	return [banners, json_version];
 }
 
 /**
@@ -1061,7 +1070,10 @@ async function execBannerNext(count:number) : Promise<EmbedBuilder[]> {
    * @returns {Promise<[number, number]>} the new number of servants and the new number of banners in the database
  */
 async function execBannerRefresh() : Promise<[number, number]> {
-	let servants : Servant[] = await fetchServants();
+	let servants : Servant[];
+	let servantDataRevision : number | undefined;
+	[servants, servantDataRevision] = await fetchServants();
+
 	console.info(`Syncing ${servants.length} servants to database ...`);
 	for(const servant of servants) {
 		// create any new occuring Classes
@@ -1094,7 +1106,10 @@ async function execBannerRefresh() : Promise<[number, number]> {
 	let scount = await ServantModel.count();
 	console.info(`Finished syncing Servants database. (${scount} servants)`)
 
-	let banners : Banner[] = await fetchBanners();
+	let banners : Banner[];
+	let bannerDataRevision : number | undefined;
+	[banners, bannerDataRevision] = await fetchBanners();
+
 	console.info(`Syncing ${banners.length} banners to database ...`)
 	for(const banner of banners) {
 		// create any new occuring banners
@@ -1124,8 +1139,32 @@ async function execBannerRefresh() : Promise<[number, number]> {
 	let bcount = await BannerModel.count();
 	console.info(`Finished syncing Banners database. (${bcount} banners)`)
 
+	setDatabaseRevision(servantDataRevision, bannerDataRevision, new Date().getTime());
 	return [scount, bcount];
 }
+
+async function databaseUpdateTask() {
+	let databaseRevision : DatabaseRevision | undefined = getDatabaseRevision();
+	const updateThreshold = new Date().getTime() - DATABASE_UPDATE_INTERVAL; // current time in milliseconds minus schedule interval
+	if(databaseRevision?.lastUpdate && databaseRevision.lastUpdate > updateThreshold) {
+		console.log("No database update necessary.");
+	} else {
+		console.log("Looking for database updates...");
+		const html_full = (await Axios.get(GAMEPRESS_URL_BANNERS)).data;
+		const bmatch = GAMEPRESS_RGX.banners.exec(html_full);
+		const smatch = GAMEPRESS_RGX.servants.exec(html_full);
+		const json_banner_version : number = Number(bmatch?.[2]);
+		const json_servant_version : number = Number(smatch?.[2]);
+		if(json_banner_version != databaseRevision?.Banner || json_servant_version != databaseRevision?.Servant) {
+			console.info(`Database revisions [${databaseRevision?.Banner}, ${databaseRevision?.Servant}] differ from gamepress revisions [${json_banner_version}, ${json_servant_version}] \nStarting database refresh...`)
+			await execBannerRefresh();
+		}
+	}
+}
+
+// run once on startup
+databaseUpdateTask();
+runDatabaseScheduler(databaseUpdateTask);
 
 module.exports = {
 	data: new SlashCommandBuilder()
