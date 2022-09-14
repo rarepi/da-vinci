@@ -21,15 +21,15 @@ class Servant extends Model<InferAttributes<Servant>, InferCreationAttributes<Se
      */
     static associate(models: any) {
         this.models = models;
-        Servant.belongsTo(models.Class, { 
+        Servant.belongsTo(models.Class, {
             foreignKey: {
                 name: 'class',
                 allowNull: true,
             }
         }),
-        Servant.belongsToMany(models.Banner, {
-            through: models.BannerServant
-        })
+            Servant.belongsToMany(models.Banner, {
+                through: models.BannerServant
+            })
     }
 
     /**
@@ -37,7 +37,7 @@ class Servant extends Model<InferAttributes<Servant>, InferCreationAttributes<Se
      * @param {string} name The full or partial name of the desired servant
      * @returns {Promise<Banner[]>}
      */
-    static findByName(name:string) : Promise<Servant[]>{
+    static findByName(name: string): Promise<Servant[]> {
         let nameLower = name.toLowerCase();
         return Servant.findAll({
             logging: console.debug,
@@ -47,7 +47,7 @@ class Servant extends Model<InferAttributes<Servant>, InferCreationAttributes<Se
 }
 
 // imported by db
-export default function(sequelize : Sequelize.Sequelize) {
+export default function (sequelize: Sequelize.Sequelize) {
     Servant.init({
         id: {
             type: Sequelize.INTEGER.UNSIGNED,
@@ -94,7 +94,7 @@ export default function(sequelize : Sequelize.Sequelize) {
             allowNull: true,
             unique: false,
         },
-    }, { 
+    }, {
         timestamps: false,
         sequelize,
     })

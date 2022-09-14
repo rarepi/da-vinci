@@ -7,9 +7,9 @@ class BannerServant extends Model<InferAttributes<BannerServant>, InferCreationA
 }
 
 // imported by db
-export default function(sequelize : Sequelize.Sequelize) {
+export default function (sequelize: Sequelize.Sequelize) {
     BannerServant.init({
-    }, { 
+    }, {
         timestamps: false,
         sequelize,
     })

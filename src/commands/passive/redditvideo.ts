@@ -12,20 +12,20 @@ Fs.promises.mkdir(PATH_TO_DL_DIR, { recursive: true }).catch(console.error);
    * @param {string} url URL of the file
    * @returns {number} The file size
  */
-async function requestFileSize (url: string): Promise<number> {
+async function requestFileSize(url: string): Promise<number> {
     let fileSize: number = 0;
     const response = await Axios({
         url,
         method: 'HEAD'
     })
-    .catch(error => {
-        if(error.response.status == 403)
-            fileSize = 0;
-        else
-            console.error("Media not found.", error);
-    });
+        .catch(error => {
+            if (error.response.status == 403)
+                fileSize = 0;
+            else
+                console.error("Media not found.", error);
+        });
 
-    if(response != null && response.headers != null && "content-length" in response.headers)
+    if (response != null && response.headers != null && "content-length" in response.headers)
         fileSize = parseInt(response.headers['content-length'])
     return fileSize;
 }
@@ -36,7 +36,7 @@ async function requestFileSize (url: string): Promise<number> {
    * @param {string} filename The filename to be used when writing the file
    * @returns {Promise<string>} Path to the downloaded file
  */
-async function downloadFile (url: string, filename: string): Promise<string> {
+async function downloadFile(url: string, filename: string): Promise<string> {
     const path = Path.resolve(PATH_TO_DL_DIR, filename)
     if (Fs.existsSync(path)) {
         console.info(`File '${path}' already exists. Skipping download of '${url}'.`);
@@ -44,7 +44,7 @@ async function downloadFile (url: string, filename: string): Promise<string> {
     }
 
     const writer = Fs.createWriteStream(path)
-    const {data, headers} = await Axios({
+    const { data, headers } = await Axios({
         url,
         method: 'GET',
         responseType: 'stream',
@@ -80,22 +80,22 @@ export async function execute(message: Discord.Message, url: string) {
 
     // extract video and audio URLs
     let reddit_video: string, reddit_audio: string;
-    if(result.data[0].data.children[0].data.hasOwnProperty(`crosspost_parent_list`)
+    if (result.data[0].data.children[0].data.hasOwnProperty(`crosspost_parent_list`)
         && result.data[0].data.children[0].data.crosspost_parent_list[0].media.hasOwnProperty(`reddit_video`)) {
         reddit_video = result.data[0].data.children[0].data.crosspost_parent_list[0].media.reddit_video.fallback_url
-                    .replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_\d+\.mp4)\S+$/g, '');
+            .replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_\d+\.mp4)\S+$/g, '');
         reddit_audio = reddit_video.replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_)\d+(?=\.mp4(\S*)$)/g, "audio");
-    } else if(result.data[0].data.children[0].data.media.hasOwnProperty(`reddit_video`)) {
+    } else if (result.data[0].data.children[0].data.media.hasOwnProperty(`reddit_video`)) {
         reddit_video = result.data[0].data.children[0].data.media.reddit_video.fallback_url
-                        .replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_\d+\.mp4)\S+$/g, '');
+            .replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_\d+\.mp4)\S+$/g, '');
         reddit_audio = reddit_video.replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_)\d+(?=\.mp4(\S*)$)/g, "audio");
     } else {
         return;
     }
 
     // use reddit's video filename as output filename
-    let filename:string = /(?<=^https?:\/\/v\.redd\.it\/)\w+(?=\/DASH_\d+\.mp4\S*$)/.exec(reddit_video)?.[0] ?? "";
-    if(filename.length <= 0) {
+    let filename: string = /(?<=^https?:\/\/v\.redd\.it\/)\w+(?=\/DASH_\d+\.mp4\S*$)/.exec(reddit_video)?.[0] ?? "";
+    if (filename.length <= 0) {
         console.error(`Failed to determine output filename.`);
         return;
     }
@@ -106,17 +106,17 @@ export async function execute(message: Discord.Message, url: string) {
     const audioSize = await requestFileSize(reddit_audio)
         .catch(error => console.error(`File size request for ${reddit_audio} failed.`, error));
     let estimatedFileSize = 0;
-    if(videoSize && audioSize)
-        estimatedFileSize = (videoSize + audioSize)/(1024**2);
-    if(estimatedFileSize > 8) {
+    if (videoSize && audioSize)
+        estimatedFileSize = (videoSize + audioSize) / (1024 ** 2);
+    if (estimatedFileSize > 8) {
         console.info(`Reddit Download skipped due to filesize of ${estimatedFileSize}MB. Discord allows uploads of up to 8MB for bots.`)
         return;
     }
 
     // download video
     let videoPath: string;
-    if(videoSize && videoSize > 0) {
-        videoPath = await downloadFile(reddit_video,`${filename}.mp4`)
+    if (videoSize && videoSize > 0) {
+        videoPath = await downloadFile(reddit_video, `${filename}.mp4`)
             .catch(
                 (error): string => {
                     console.error(`Failed to download ${reddit_video}`, error);
@@ -125,8 +125,8 @@ export async function execute(message: Discord.Message, url: string) {
     }
     // download audio
     let audioPath: string;
-    if(audioSize && audioSize > 0) {
-        audioPath = await downloadFile(reddit_audio,`${filename}.aac`)
+    if (audioSize && audioSize > 0) {
+        audioPath = await downloadFile(reddit_audio, `${filename}.aac`)
             .catch(
                 (error): string => {
                     console.error(`Failed to download ${reddit_audio}`, error);
@@ -135,12 +135,12 @@ export async function execute(message: Discord.Message, url: string) {
     }
     const outPath = `${PATH_TO_DL_DIR}\\${filename}_out.mp4`;
 
-    let mux = new Promise<void>(function(success, nosuccess) {
+    let mux = new Promise<void>(function (success, nosuccess) {
         let pArgs = [`-n`]  // don't overwrite existing files
-        if(videoPath) {
+        if (videoPath) {
             pArgs.push(`-i`, videoPath);    // input file (video)
         }
-        if(audioPath) {
+        if (audioPath) {
             pArgs.push(`-i`, audioPath);    // input file (audio)
         }
         pArgs.push(`-c`, `copy`, `${outPath}`); // selects "copy" as encoder (just copies the input streams without encoding)
@@ -171,7 +171,7 @@ export async function execute(message: Discord.Message, url: string) {
 
     await mux.catch(error => console.error('Failed muxing.', error));;
 
-    const attachment = new Discord.AttachmentBuilder(outPath, { name: `${filename}.mp4`});
-    await message.reply({files: [attachment], allowedMentions: {repliedUser: false}})
+    const attachment = new Discord.AttachmentBuilder(outPath, { name: `${filename}.mp4` });
+    await message.reply({ files: [attachment], allowedMentions: { repliedUser: false } })
         .catch(error => console.error("Failed to upload video to Discord.", error));
 }

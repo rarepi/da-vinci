@@ -6,11 +6,11 @@ import Discord from "discord.js"
  * @param {string} url The URL which will be modified to be automatically opened by the steam client
  */
 export async function execute(message: Discord.Message, url: string) {
-    const STEAM_PROT_PREFIX:string = "steam://openurl/"
-    const steamed_url:string = `Open in Steam: ${STEAM_PROT_PREFIX}${url}`
-    let replyOptions:Discord.ReplyMessageOptions = {
+    const STEAM_PROT_PREFIX: string = "steam://openurl/"
+    const steamed_url: string = `Open in Steam: ${STEAM_PROT_PREFIX}${url}`
+    let replyOptions: Discord.ReplyMessageOptions = {
         content: steamed_url,
-        allowedMentions: {repliedUser: false}   // don't ping the author
+        allowedMentions: { repliedUser: false }   // don't ping the author
     };
     const msg = await message.reply(replyOptions)
         .catch(

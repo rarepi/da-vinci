@@ -6,7 +6,7 @@ import Sequelize, { CreationOptional, InferAttributes, InferCreationAttributes, 
    * @param {Date} date2
    * @returns {number} The difference between the two dates. (date1 - date2)
  */
-function dateDifferenceInDays(date1: Date, date2: Date) : number {
+function dateDifferenceInDays(date1: Date, date2: Date): number {
     const date1_ms = Date.UTC(date1.getUTCFullYear(), date1.getUTCMonth(), date1.getUTCDate());
     const date2_ms = Date.UTC(date2.getUTCFullYear(), date2.getUTCMonth(), date2.getUTCDate());
     return Math.floor((date1_ms - date2_ms) / 1000 / 60 / 60 / 24);
@@ -32,7 +32,7 @@ class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Bann
      * @param {any} models Map of sequelize models
      */
     static associate(models: any) {
-        if(!models.Servant)
+        if (!models.Servant)
             console.error(`Servant model is missing.`)
         this.models = models;
         Banner.belongsToMany(models.Servant, {
@@ -44,7 +44,7 @@ class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Bann
      * Obtains all currently active NA summoning banners from database
      * @returns {Promise<Banner[]>} 
      */
-    static findCurrent() : Promise<Banner[]>{
+    static findCurrent(): Promise<Banner[]> {
         let now = new Date().toUTCString();
         return Banner.findAll({
             //logging: console.debug,
@@ -65,7 +65,7 @@ class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Bann
      * @param {number} count Maximum amount of banners to obtain
      * @returns {Promise<Banner[]>}
      */
-    static findNext(count:number) : Promise<Banner[]> {
+    static findNext(count: number): Promise<Banner[]> {
         const now = new Date().toUTCString();
         return Banner.findAll({
             //logging: console.debug,
@@ -83,7 +83,7 @@ class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Bann
      * Obtains the most recently started summoning banner which has a JP start date available.
      * @returns {Promise<Banner|null>}
      */
-    static async findMostRecentBannerWithJPStartDate() : Promise<Banner|null> {
+    static async findMostRecentBannerWithJPStartDate(): Promise<Banner | null> {
         const now = new Date().toUTCString();
         let recentBanners = await Banner.findAll({
             //logging: console.debug,
@@ -102,11 +102,11 @@ class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Bann
             limit: 1
         });
 
-        if(recentBanners.length == 0) {
+        if (recentBanners.length == 0) {
             console.error(`findMostRecentBannerWithJPStartDate: Failed to find Banner.`);
             return null;
         }
-        
+
         return recentBanners[0];
     }
 
@@ -117,7 +117,7 @@ class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Bann
      * @param {Sequelize.Includeable | Sequelize.Includeable[] | undefined} [include] Further data to be included in the sequelize query
      * @returns {Promise<[Banner[], number | undefined]>} (1) The obtained banners including possibly predicted NA dates (2) The amount of days the predicted dates are based on
      */
-    static async findNextPredicted(count?: number, include?: Sequelize.Includeable | Sequelize.Includeable[] | undefined) : Promise<[Banner[], number | undefined]> {
+    static async findNextPredicted(count?: number, include?: Sequelize.Includeable | Sequelize.Includeable[] | undefined): Promise<[Banner[], number | undefined]> {
         console.debug(`Predicting upcoming banners based on JP dates...`)
         const now = new Date().toUTCString();
         let nextBannersJP: Banner[] = [];
@@ -125,7 +125,7 @@ class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Bann
 
         const refBanner = await this.findMostRecentBannerWithJPStartDate();
         console.debug(`findNextPredicted: Banner used for reference: ${refBanner?.name}`);
-        if(!refBanner)
+        if (!refBanner)
             return [nextBannersJP, undefined];
 
         let refStartJP = refBanner.jp_start_date.toUTCString();
@@ -176,7 +176,7 @@ class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Bann
      * @param {number} [count] Maximum amount of banners to obtain
      * @returns {Promise<Banner[]>} Banners that feature the given servant
      */
-    static async findByServant(servantId:number|string, upcomingOnly:boolean = false, count?: number) : Promise<Banner[]>{
+    static async findByServant(servantId: number | string, upcomingOnly: boolean = false, count?: number): Promise<Banner[]> {
         let banners: Banner[];
         const include = {
             model: this.models.Servant,
@@ -189,23 +189,23 @@ class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Bann
             }
         };
 
-        if(upcomingOnly)
+        if (upcomingOnly)
             banners = (await this.findNextPredicted(count, include))[0];
         else {
-            banners = await this.findAll({ 
+            banners = await this.findAll({
                 include: include,
                 order: [['jp_start_date', 'ASC']],
                 limit: count,
                 //logging: console.debug
             })
             const refBanner = await this.findMostRecentBannerWithJPStartDate();
-            if(refBanner) {
+            if (refBanner) {
                 banners = this.applyDayOffset(banners, dateDifferenceInDays(refBanner.na_start_date, refBanner.jp_start_date));
             } else {
                 console.error(`findByServant: Could not predict NA dates because a JP reference banner could not be found.`)
             }
         }
-        
+
         return banners;
     }
 
@@ -216,9 +216,9 @@ class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Bann
      * @param {number} dayOffset Days to add to JP dates to determine a predicted NA date
      * @returns {Banner[]}
      */
-    static applyDayOffset(banners: Banner[], dayOffset: number) : Banner[] {
-        for(let b of banners) {
-            if(!(b.na_start_date && b.na_end_date)) {
+    static applyDayOffset(banners: Banner[], dayOffset: number): Banner[] {
+        for (let b of banners) {
+            if (!(b.na_start_date && b.na_end_date)) {
                 // set NA period to JP period
                 b.na_start_date = b.jp_start_date;
                 b.na_end_date = b.jp_end_date;
@@ -231,7 +231,7 @@ class Banner extends Model<InferAttributes<Banner>, InferCreationAttributes<Bann
     }
 }
 
-export default function(sequelize : Sequelize.Sequelize) : typeof Banner {
+export default function (sequelize: Sequelize.Sequelize): typeof Banner {
     Banner.init({
         id: {
             type: Sequelize.INTEGER.UNSIGNED,
@@ -272,7 +272,7 @@ export default function(sequelize : Sequelize.Sequelize) : typeof Banner {
             type: Sequelize.BOOLEAN,
             allowNull: true,
         }
-    }, { 
+    }, {
         timestamps: false,
         sequelize,
     })

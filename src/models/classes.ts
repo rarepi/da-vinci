@@ -4,17 +4,12 @@ class Class extends Model<InferAttributes<Class>, InferCreationAttributes<Class>
     declare id: CreationOptional<number>;
     declare name: string;
     static associate(models: any) {
-/*             Class.hasMany(models.Servant, {
-            foreignKey: {
-                name: "class",
-                allowNull: true,
-            }
-        }); */
+
     }
 }
 
 // imported by db
-export default function(sequelize : Sequelize.Sequelize) {
+export default function (sequelize: Sequelize.Sequelize) {
     Class.init({
         id: {
             type: Sequelize.INTEGER.UNSIGNED,

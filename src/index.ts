@@ -11,8 +11,8 @@ import db from './db'
 
 const CONSOLE_DEBUG = false;
 
-if(!CONSOLE_DEBUG)
-    console.debug = function(){ }
+if (!CONSOLE_DEBUG)
+    console.debug = function () { }
 
 /*
     setup Discord client
@@ -41,13 +41,13 @@ client.on('interactionCreate', interaction => {
     let timestamp = interaction.createdAt;
     let channelName = (interaction.channel as Discord.TextChannel).name;
     let username = `${interaction.user.username}#${interaction.user.discriminator}`;
-    let cmd : string[] = [interaction.commandName];
+    let cmd: string[] = [interaction.commandName];
     // rebuild used commandline via option properties
-    let options : Discord.CommandInteractionOption<Discord.CacheType> | undefined = interaction.options.data[0];
-    while(options) {
-        if(options.type == Discord.ApplicationCommandOptionType.SubcommandGroup || options.type == Discord.ApplicationCommandOptionType.Subcommand)
+    let options: Discord.CommandInteractionOption<Discord.CacheType> | undefined = interaction.options.data[0];
+    while (options) {
+        if (options.type == Discord.ApplicationCommandOptionType.SubcommandGroup || options.type == Discord.ApplicationCommandOptionType.Subcommand)
             cmd.push(options.name);
-        else if(options.value)  // parameter CommandInteractionOption.value is optional
+        else if (options.value)  // parameter CommandInteractionOption.value is optional
             cmd.push(options.value.toString());
         options = options.options?.[0];
     }
@@ -70,11 +70,11 @@ async function collectCommands() {
     const commandFiles = fs.readdirSync('src/commands').filter((file: string) => file.endsWith('.ts'));
 
     for (const file of commandFiles) {
-        const command:Command = await import(`./commands/${file}`) as unknown as Command; // use Command interface to assume the existence of its properties
-        if(command.prepare != undefined) {  // allows the call of an async function inside a command file
+        const command: Command = await import(`./commands/${file}`) as unknown as Command; // use Command interface to assume the existence of its properties
+        if (command.prepare != undefined) {  // allows the call of an async function inside a command file
             await command.prepare();
         }
-        const data:SlashCommandBuilder = command.data;
+        const data: SlashCommandBuilder = command.data;
         // command name : exported module
         commands.set(data.name, command);
     }
@@ -100,16 +100,16 @@ function registerCommands() {
 
 // execute commands on interaction
 client.on('interactionCreate', async (interaction) => {
-	if (interaction.type !== Discord.InteractionType.ApplicationCommand) return;
+    if (interaction.type !== Discord.InteractionType.ApplicationCommand) return;
 
-	const command = commands.get(interaction.commandName);
-	if (!command) return;
-	try {
-		await command.execute(interaction);
-	} catch (error) {
-		console.error(error);
-		//await interaction.reply({ content: 'There was an error while executing this command.', ephemeral: true });
-	}
+    const command = commands.get(interaction.commandName);
+    if (!command) return;
+    try {
+        await command.execute(interaction);
+    } catch (error) {
+        console.error(error);
+        //await interaction.reply({ content: 'There was an error while executing this command.', ephemeral: true });
+    }
 });
 
 /*
@@ -121,7 +121,7 @@ client.on('messageCreate', message => {
     const REDDIT_URL_RGX = /^[^\r\n]*(https?:\/\/(?:www\.)?reddit\.com\/r\/\w+?\/(?:comments\/)?\w+\/?)[^\r\n]*$/gm
     if (message.author.bot) return;
     const match = REDDIT_URL_RGX.exec(message.content);
-    if(match) {
+    if (match) {
         let reddit_url = match[1];
         console.debug(`Reddit link detected: ${reddit_url}`);
         redditvideo.execute(message, reddit_url);
@@ -133,7 +133,7 @@ client.on('messageCreate', message => {
     if (message.author.id === client.user?.id) return;
     const STEAM_URL_RGX = /^(?:[^\r\n]+ )*<?((?:https?:\/\/)?(?:\w+\.)*steam(?:powered|community).com\/?\S*?)>?(?: [^\r\n]+)*$/gm
     const match = STEAM_URL_RGX.exec(message.content);
-    if(match) {
+    if (match) {
         let steam_url = match[1];
         console.debug(`Steam link detected: ${steam_url}`);
         steamurl.execute(message, steam_url);
