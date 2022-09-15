@@ -33,7 +33,12 @@ client.once('ready', () => {
 
 // chat log: print every text message to console
 client.on('messageCreate', message => {
-    console.log(`MSG [${message.createdAt} ${(message.channel as Discord.TextChannel).name}] ${message.author.username}#${message.author.discriminator} : ${message.content}`);
+    let logMessage = `MESSAGE @ ${message.createdAt} IN ${(message.channel as Discord.TextChannel).name}] BY ${message.author.username}#${message.author.discriminator} :`;
+    if(message.content.length > 0)
+        logMessage = logMessage.concat(` "${message.content}"`);
+    if(message.attachments.size > 0)
+        logMessage = logMessage.concat(`, attachments: ${message.attachments.map((attachment => { return attachment.url })).join(", ")}`);
+    console.log(logMessage);
 });
 
 // chat log: print every interaction to console
