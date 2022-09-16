@@ -7,9 +7,13 @@ import { Routes } from "discord-api-types/v10";
 import { REST } from '@discordjs/rest';
 import { clientId, guildId, token } from './config.json';
 import db from './db'
+import CLI from './commandline'
 //const {command_prefix: COMMAND_PREFIX} = require('../config.json');
 
-const CONSOLE_DEBUG = false;
+const OWNER_ID = "268469541841928193";
+const USER_LOCALE = Intl.DateTimeFormat().resolvedOptions().locale;
+
+const CONSOLE_DEBUG = true;
 
 if (!CONSOLE_DEBUG)
     console.debug = function () { }
@@ -23,21 +27,51 @@ const client = new Discord.Client({
         Discord.GatewayIntentBits.GuildMessages,
         Discord.GatewayIntentBits.DirectMessages,
         Discord.GatewayIntentBits.MessageContent,
+    ],
+    partials: [
+        Discord.Partials.Channel
     ]
 });
 
 // runs once after login
 client.once('ready', () => {
     console.info('Ready!');
+    const stdin = process.openStdin();
+    const cli = new CLI(client);
+
+    stdin.addListener("data", function(d) {
+        const input : string[] = d.toString().trim().split(' ');
+        const command : string = input[0];
+        const args = input.splice(1);
+        if(cli.callables.hasOwnProperty(command)) {
+            cli.callables[command](...args);
+        }
+    });
 });
 
 // chat log: print every text message to console
 client.on('messageCreate', message => {
-    let logMessage = `MESSAGE @ ${message.createdAt} IN ${(message.channel as Discord.TextChannel).name}] BY ${message.author.username}#${message.author.discriminator} :`;
+    let logMessage : string= "";
+    if(message.channel.isDMBased() && message.channel.isTextBased()) {
+        logMessage = logMessage.concat(
+            `DIRECT MESSAGE @ ${message.createdAt.toLocaleString(USER_LOCALE, { timeZone: "Europe/Berlin" })}`,
+            ` BY ${message.author.username}#${message.author.discriminator} {${message.author.id}}:`);
+        if(message.author.id != OWNER_ID && message.author.id != client.user?.id)
+            // also send direct messages to bot owner
+            client.users.createDM(OWNER_ID).then(dm => {
+                dm.send(`\`\`\`${logMessage}\`\`\``).catch((error:any) => console.error(`[${error.code}] ${error.message}`));
+            });
+    } else if(message.inGuild() && message.channel.isTextBased()) {
+        logMessage = logMessage.concat(
+            `MESSAGE @ ${message.createdAt.toLocaleString(USER_LOCALE, { timeZone: "Europe/Berlin" })}`,
+            ` IN ${message.guild?.name}#${(message.channel as Discord.TextChannel).name}] {${message.guild.id}#${message.channel.id}}`,
+            ` BY ${message.author.username}#${message.author.discriminator} {${message.author.id}}:`);
+    }
+
     if(message.content.length > 0)
-        logMessage = logMessage.concat(` "${message.content}"`);
+        logMessage = logMessage.concat(`\n message: "${message.content}"`);
     if(message.attachments.size > 0)
-        logMessage = logMessage.concat(`, attachments: ${message.attachments.map((attachment => { return attachment.url })).join(", ")}`);
+        logMessage = logMessage.concat(`\n attachments: ${message.attachments.map((attachment => { return attachment.url })).join(", ")}`);
     console.log(logMessage);
 });
 
