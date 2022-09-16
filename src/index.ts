@@ -12,6 +12,7 @@ import CLI from './commandline'
 
 const OWNER_ID = "268469541841928193";
 const USER_LOCALE = Intl.DateTimeFormat().resolvedOptions().locale;
+const USER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const CONSOLE_DEBUG = true;
 
@@ -54,7 +55,7 @@ client.on('messageCreate', message => {
     let logMessage : string= "";
     if(message.channel.isDMBased() && message.channel.isTextBased()) {
         logMessage = logMessage.concat(
-            `DIRECT MESSAGE @ ${message.createdAt.toLocaleString(USER_LOCALE, { timeZone: "Europe/Berlin" })}`,
+            `DIRECT MESSAGE @ ${message.createdAt.toLocaleString(USER_LOCALE, { timeZone: USER_TIMEZONE })}`,
             ` BY ${message.author.username}#${message.author.discriminator} {${message.author.id}}:`);
         if(message.author.id != OWNER_ID && message.author.id != client.user?.id)
             // also send direct messages to bot owner
@@ -63,7 +64,7 @@ client.on('messageCreate', message => {
             });
     } else if(message.inGuild() && message.channel.isTextBased()) {
         logMessage = logMessage.concat(
-            `MESSAGE @ ${message.createdAt.toLocaleString(USER_LOCALE, { timeZone: "Europe/Berlin" })}`,
+            `MESSAGE @ ${message.createdAt.toLocaleString(USER_LOCALE, { timeZone: USER_TIMEZONE })}`,
             ` IN ${message.guild?.name}#${(message.channel as Discord.TextChannel).name}] {${message.guild.id}#${message.channel.id}}`,
             ` BY ${message.author.username}#${message.author.discriminator} {${message.author.id}}:`);
     }
