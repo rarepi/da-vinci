@@ -14,10 +14,12 @@ const OWNER_ID = "268469541841928193";
 const USER_LOCALE = Intl.DateTimeFormat().resolvedOptions().locale;
 const USER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-const CONSOLE_DEBUG = true;
+const CONSOLE_DEBUG = false;
 
 if (!CONSOLE_DEBUG)
     console.debug = function () { }
+
+console.debug(`Detected locale: ${USER_LOCALE}; Detected timezone: ${USER_TIMEZONE}`);
 
 /*
     setup Discord client
