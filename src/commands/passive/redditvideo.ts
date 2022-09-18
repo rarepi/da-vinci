@@ -80,12 +80,12 @@ export async function execute(message: Discord.Message, url: string) {
 
     // extract video and audio URLs
     let reddit_video: string, reddit_audio: string;
-    if (result?.data[0]?.data?.children[0]?.data?.hasOwnProperty(`crosspost_parent_list`)
-        && result?.data[0]?.data?.children[0]?.data?.crosspost_parent_list[0]?.media?.hasOwnProperty(`reddit_video`)) {
-        reddit_video = result.data[0].data.children[0].data.crosspost_parent_list[0].media.reddit_video.fallback_url
+    if (result?.data?.[0]?.data?.children?.[0]?.data?.hasOwnProperty(`crosspost_parent_list`)
+        && result?.data?.[0]?.data?.children?.[0]?.data?.crosspost_parent_list?.[0]?.media?.hasOwnProperty(`reddit_video`)) {
+        reddit_video = result.data[0].data.children[0].data.crosspost_parent_list?.[0].media.reddit_video.fallback_url
             .replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_\d+\.mp4)\S+$/g, '');
         reddit_audio = reddit_video.replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_)\d+(?=\.mp4(\S*)$)/g, "audio");
-    } else if (result?.data[0]?.data?.children[0]?.data?.media?.hasOwnProperty(`reddit_video`)) {
+    } else if (result?.data?.[0]?.data?.children?.[0]?.data?.media?.hasOwnProperty(`reddit_video`)) {
         reddit_video = result.data[0].data.children[0].data.media.reddit_video.fallback_url
             .replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_\d+\.mp4)\S+$/g, '');
         reddit_audio = reddit_video.replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_)\d+(?=\.mp4(\S*)$)/g, "audio");
