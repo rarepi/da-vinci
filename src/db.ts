@@ -100,9 +100,10 @@ export class Database {
     }
 }
 
-console.info("Syncing DB")
-sequelize.sync()
-    .catch((err) => {
-        console.error(err);
-        process.exit();
-    });
+export async function sync() {
+    console.info("Syncing DB")
+    await sequelize.sync()  // this failing is fatal
+        .catch((err) => {
+            throw(err);     
+        });
+}

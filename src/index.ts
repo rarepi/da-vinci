@@ -2,7 +2,7 @@ import fs from 'fs';
 import Discord from "discord.js"
 import * as redditvideo from './commands/passive/redditvideo';
 import * as steamurl from './commands/passive/steamurl';
-import db from './db'
+import db, { sync as synchronizeDatabaseModels } from './db'
 import CLI from './commandline'
 import { ClientWithCommands, Command } from './commandType'
 import { token } from './config.json';
@@ -91,6 +91,8 @@ client.on('messageCreate', message => {
         logMessage = logMessage.concat(`\n message: "${message.content}"`);
     if(message.attachments.size > 0)
         logMessage = logMessage.concat(`\n attachments: ${message.attachments.map((attachment => { return attachment.url })).join(", ")}`);
+    if(message.embeds.length > 0)
+        logMessage = logMessage.concat(`\n embed count: ${message.embeds.length}`);
     console.log(logMessage);
 });
 
@@ -156,13 +158,8 @@ client.on('messageCreate', message => {
     } else return;
 });
 
-
-
-/*
-    setup database
-*/
-console.debug(db)
-
-readCommandFiles().then(() => {
+readCommandFiles()
+.then(() => synchronizeDatabaseModels())
+.then(() => {
     return client.login(token)
 });
