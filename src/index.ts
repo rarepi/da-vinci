@@ -2,13 +2,10 @@ import fs from 'fs';
 import Discord from "discord.js"
 import * as redditvideo from './commands/passive/redditvideo';
 import * as steamurl from './commands/passive/steamurl';
-import { SlashCommandBuilder } from '@discordjs/builders';
-import { Routes } from "discord-api-types/v10";
-import { REST } from '@discordjs/rest';
-import { clientId, guildId, token } from './config.json';
 import db from './db'
 import CLI from './commandline'
-//const {command_prefix: COMMAND_PREFIX} = require('../config.json');
+import { ClientWithCommands, Command } from './commandType'
+import { token } from './config.json';
 
 const OWNER_ID = "268469541841928193";
 const USER_LOCALE = Intl.DateTimeFormat().resolvedOptions().locale;
@@ -24,7 +21,7 @@ console.debug(`Detected locale: ${USER_LOCALE}; Detected timezone: ${USER_TIMEZO
 /*
     setup Discord client
 */
-const client = new Discord.Client({
+const client = new ClientWithCommands({
     intents: [
         Discord.GatewayIntentBits.Guilds,
         Discord.GatewayIntentBits.GuildMessages,
@@ -35,6 +32,25 @@ const client = new Discord.Client({
         Discord.Partials.Channel
     ]
 });
+
+
+
+// read command files
+async function readCommandFiles() {
+    const commandFiles = fs.readdirSync('src/commands').filter((file: string) => file.endsWith('.ts'));
+
+    for (const file of commandFiles) {
+        const command: Command = await import(`./commands/${file}`) as unknown as Command; // use Command interface to assume the existence of its properties
+        if (command.prepare != undefined) {  // allows the call of an async function inside a command file
+            await command.prepare();
+        }
+        const data: Discord.SlashCommandBuilder = command.data;
+        // command name : exported module
+        client.commands.set(data.name, command);
+    }
+}
+
+
 
 // runs once after login
 client.once('ready', () => {
@@ -98,54 +114,11 @@ client.on('interactionCreate', interaction => {
     console.log(`APP_CMD [${timestamp} ${channelName}] ${username} : /${commandLine}`);
 });
 
-/*
-    setup slash commands
-*/
-interface Command {
-    prepare?: Function,
-    data: SlashCommandBuilder,
-    execute: Function
-}
-
-// read command files
-let commands = new Discord.Collection<string, Command>();
-async function collectCommands() {
-    const commandFiles = fs.readdirSync('src/commands').filter((file: string) => file.endsWith('.ts'));
-
-    for (const file of commandFiles) {
-        const command: Command = await import(`./commands/${file}`) as unknown as Command; // use Command interface to assume the existence of its properties
-        if (command.prepare != undefined) {  // allows the call of an async function inside a command file
-            await command.prepare();
-        }
-        const data: SlashCommandBuilder = command.data;
-        // command name : exported module
-        commands.set(data.name, command);
-    }
-}
-
-// register commands to Discord
-collectCommands()
-    .then(() => registerCommands()); // should not be executed everytime - TODO: either check if new commands have been added or just make this a command by itself
-function registerCommands() {
-    const commands_json: any[] = []
-
-    for (const cmd of commands) {
-        commands_json.push(cmd[1].data.toJSON());
-        console.info(`Added ${cmd[0]} to command register.`)
-    }
-
-    const rest = new REST({ version: '10' }).setToken(token);
-
-    rest.put(Routes.applicationCommands(clientId), { body: commands_json })
-        .then(() => console.info('Successfully registered application commands.'))
-        .catch(console.error);
-}
-
 // execute commands on interaction
 client.on('interactionCreate', async (interaction) => {
     if (interaction.type !== Discord.InteractionType.ApplicationCommand) return;
 
-    const command = commands.get(interaction.commandName);
+    const command = client.commands.get(interaction.commandName);
     if (!command) return;
     try {
         await command.execute(interaction);
@@ -183,9 +156,13 @@ client.on('messageCreate', message => {
     } else return;
 });
 
+
+
 /*
     setup database
 */
 console.debug(db)
 
-client.login(token);
+readCommandFiles().then(() => {
+    return client.login(token)
+});
