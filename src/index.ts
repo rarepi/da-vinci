@@ -11,8 +11,8 @@ const OWNER_ID = "268469541841928193";
 const USER_LOCALE = Intl.DateTimeFormat().resolvedOptions().locale;
 const USER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-const CONSOLE_DEBUG = false;
-
+// enable debug outputs only if "-debug" parameter is given
+const CONSOLE_DEBUG = process.argv.includes("-debug");
 if (!CONSOLE_DEBUG)
     console.debug = function () { }
 
@@ -93,6 +93,11 @@ client.on('messageCreate', message => {
         logMessage = logMessage.concat(`\n attachments: ${message.attachments.map((attachment => { return attachment.url })).join(", ")}`);
     if(message.embeds.length > 0)
         logMessage = logMessage.concat(`\n embed count: ${message.embeds.length}`);
+    if(message.flags.has("Ephemeral")) {
+        logMessage = logMessage.concat(`\n ephemeral`);
+        if(message.interaction?.user)
+            logMessage = logMessage.concat(`: ${message.interaction.user.username}#${message.interaction.user.discriminator}`);
+    }
     console.log(logMessage);
 });
 
