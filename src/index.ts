@@ -158,8 +158,8 @@ client.on('messageCreate', message => {
     } else return;
 });
 
-readCommandFiles()
-.then(() => synchronizeDatabaseModels())
+synchronizeDatabaseModels()
+.then(() => readCommandFiles())
 .then(() => {
     return client.login(token)
 });
