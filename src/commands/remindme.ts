@@ -44,7 +44,7 @@ async function startupReminders(client: Discord.Client) {
             const msToFutureTime = futureTime.toMillis() - now.toMillis();
             if(msToFutureTime <= 0) {
                 // notification is late
-                reminder.text = reminder.text.concat(`\n\nNote: This reminder was originally scheduled for ${futureTime.toLocaleString()} at ${futureTime.hour}:${futureTime.minute}:${futureTime.second}, but I was unavailable at the time. Sorry!`)
+                reminder.text = reminder.text.concat(`\n\nNote: This reminder was originally scheduled for ${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} but I was unavailable at the time. Sorry!`)
                 notifyUser(user, channel, reminder);
                 cancelReminder(reminder.id, user);
             } else {
@@ -87,7 +87,7 @@ async function startupReminders(client: Discord.Client) {
 }
 
 async function cancelReminder(id: number, user: Discord.User) : Promise<boolean> {
-    const reminder = ActiveReminders.get(id);
+    const reminder = await Reminder.findByPk(id);
     if(!reminder || reminder.userId !== user.id)
         return false;
 
@@ -96,6 +96,7 @@ async function cancelReminder(id: number, user: Discord.User) : Promise<boolean>
         clearInterval(reminder.timer);
     else
         clearTimeout(reminder.timer);
+        
     // delete from map
     ActiveReminders.delete(id);
     // delete from database
@@ -382,7 +383,7 @@ module.exports = {
             // calculate milliseconds till reminder date
             const msToFutureTime = futureTime.toMillis() - now.toMillis();
             if(msToFutureTime > 0) {
-                interaction.editReply(`Alright! I'll notify you on ${futureTime.toLocaleString()} at ${futureTime.hour}:${futureTime.minute}:${futureTime.second}. You can cancel this by using \`/remindme cancel ${reminder.id}\``)
+                interaction.editReply(`Alright! I'll notify you on ${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)}. You can cancel this by using \`/remindme cancel ${reminder.id}\``)
             } else {
                 interaction.editReply(`Sorry, I can't notify you in the past.\n...\n...or can I?`)
                 return;
