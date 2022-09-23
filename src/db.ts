@@ -25,12 +25,15 @@ import _Banner from "./models/banners"
 const Banner = _Banner(sequelize);
 import _BannerServants from "./models/bannerservants"
 const BannerServant = _BannerServants(sequelize);
+import _Reminder from "./models/reminders"
+const Reminder = _Reminder(sequelize);
 
 let models: any = {
     Class: Class,
     Servant: Servant,
     Banner: Banner,
-    BannerServant: BannerServant
+    BannerServant: BannerServant,
+    Reminder: Reminder
 }
 
 Object.keys(models).forEach((modelName: string) => {
@@ -49,7 +52,7 @@ export class Database {
         }
         setInterval(databaseUpdateTask, DATABASE_UPDATE_INTERVAL);
         console.info(`Starting database update scheduler. Database update scheduled for every ${DATABASE_UPDATE_INTERVAL / 1000 / 60 / 60} hours.`);
-        return
+        return;
     }
 
     static getDatabaseRevision(): DatabaseRevision | undefined {

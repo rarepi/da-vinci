@@ -12,7 +12,7 @@ class Class extends Model<InferAttributes<Class>, InferCreationAttributes<Class>
 export default function (sequelize: Sequelize.Sequelize) {
     Class.init({
         id: {
-            type: Sequelize.INTEGER.UNSIGNED,
+            type: Sequelize.INTEGER,
             primaryKey: true,
             autoIncrement: true,
             allowNull: false,

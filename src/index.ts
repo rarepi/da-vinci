@@ -11,11 +11,15 @@ const OWNER_ID = "268469541841928193";
 const USER_LOCALE = Intl.DateTimeFormat().resolvedOptions().locale;
 const USER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+const RGX_REDDIT_URL = /^[^\r\n]*(https?:\/\/(?:www\.)?reddit\.com\/r\/\w+?\/(?:comments\/)?\w+\/?)[^\r\n]*$/gm
+const RGX_STEAM_URL = /^(?:[^\r\n]+ )*<?((?:https?:\/\/)?(?:\w+\.)*steam(?:powered|community).com\/?\S*?)>?(?: [^\r\n]+)*$/gm
+
 // enable debug outputs only if "-debug" parameter is given
 const CONSOLE_DEBUG = process.argv.includes("-debug");
 if (!CONSOLE_DEBUG)
     console.debug = function () { }
 
+console.debug(`Debug outputs enabled.`)
 console.debug(`Detected locale: ${USER_LOCALE}; Detected timezone: ${USER_TIMEZONE}`);
 
 /*
@@ -51,22 +55,6 @@ async function readCommandFiles() {
 }
 
 
-
-// runs once after login
-client.once('ready', () => {
-    console.info('Ready!');
-    const stdin = process.openStdin();
-    const cli = new CLI(client);
-
-    stdin.addListener("data", function(d) {
-        const input : string[] = d.toString().trim().split(' ');
-        const command : string = input[0];
-        const args = input.splice(1);
-        if(cli.callables.hasOwnProperty(command)) {
-            cli.callables[command](...args);
-        }
-    });
-});
 
 // chat log: print every text message to console
 client.on('messageCreate', message => {
@@ -141,9 +129,8 @@ client.on('interactionCreate', async (interaction) => {
 
 // reddit video uploader
 client.on('messageCreate', message => {
-    const REDDIT_URL_RGX = /^[^\r\n]*(https?:\/\/(?:www\.)?reddit\.com\/r\/\w+?\/(?:comments\/)?\w+\/?)[^\r\n]*$/gm
-    if (message.author.bot) return;
-    const match = REDDIT_URL_RGX.exec(message.content);
+    if (message.author.bot) return; // ignore bot messages, including my own
+    const match = RGX_REDDIT_URL.exec(message.content);
     if (match) {
         let reddit_url = match[1];
         console.debug(`Reddit link detected: ${reddit_url}`);
@@ -153,9 +140,8 @@ client.on('messageCreate', message => {
 
 // posts URLs of steam websites as "steam://"" URLs for easy access via steam client
 client.on('messageCreate', message => {
-    if (message.author.id === client.user?.id) return;
-    const STEAM_URL_RGX = /^(?:[^\r\n]+ )*<?((?:https?:\/\/)?(?:\w+\.)*steam(?:powered|community).com\/?\S*?)>?(?: [^\r\n]+)*$/gm
-    const match = STEAM_URL_RGX.exec(message.content);
+    if (message.author.id === client.user?.id) return;  // ignore my own messages
+    const match = RGX_STEAM_URL.exec(message.content);
     if (match) {
         let steam_url = match[1];
         console.debug(`Steam link detected: ${steam_url}`);
@@ -163,8 +149,29 @@ client.on('messageCreate', message => {
     } else return;
 });
 
+// runs once after login
+client.once('ready', () => {
+    // setup command line interface
+    const stdin = process.openStdin();
+    const cli = new CLI(client);
+
+    stdin.addListener("data", function(d) {
+        const input : string[] = d.toString().trim().split(' ');
+        const command : string = input[0];
+        const args = input.splice(1);
+        if(cli.callables.hasOwnProperty(command)) {
+            cli.callables[command](...args);
+        }
+    });
+
+    console.info('Ready!');
+});
+
+// execute various startup procedures
 synchronizeDatabaseModels()
 .then(() => readCommandFiles())
-.then(() => {
-    return client.login(token)
-});
+.then(() => client.login(token))
+.then(async() => {
+    const remindme = await import(`./commands/remindme`) as any;    // TODO this is an ugly workaround to import reminder startup function alongside command data
+    remindme.startupReminders(client as Discord.Client);
+})
