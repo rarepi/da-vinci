@@ -13,7 +13,7 @@ export const sequelize = new Sequelize.Sequelize({
     dialect: 'sqlite',
     //logging: console.debug,
     logging: false,
-    storage: 'db/servants.db',
+    storage: 'db/davinci.db',
     //transactionType: Transaction.TYPES.IMMEDIATE, // https://github.com/sequelize/sequelize/issues/10304
 });
 
