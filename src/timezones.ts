@@ -1,0 +1,132 @@
+export class NamedTimeZone {
+    public fullName: string;
+    public shortName: string;
+    public UTCOffset: string;
+
+    constructor(fullName: string, shortName: string, UTCOffset: string) {
+        this.fullName = fullName;
+        this.shortName = shortName;
+        this.UTCOffset = UTCOffset;
+    }
+}
+
+export const NamedTimeZones: NamedTimeZone[] = [
+    new NamedTimeZone('Coordinated Universal Time', 'UTC', '+00:00'),
+    // Europe
+    new NamedTimeZone('Further-western European Time', 'FWT', '-01:00'),
+    new NamedTimeZone('Azores Time', 'AZOT', '-01:00'),
+    new NamedTimeZone('Further-western European Summer Time', 'FWST', '+00:00'),
+    new NamedTimeZone('Azores Summer Time', 'AZOST', '+00:00'),
+    new NamedTimeZone('Western European Time', 'WET', '+00:00'),
+    new NamedTimeZone('Greenwich Mean Time', 'GMT', '+00:00'),
+    new NamedTimeZone('Iceland Time', 'ICT', '+00:00'),
+    new NamedTimeZone('Western European Summer Time', 'WEST', '+01:00'),
+    new NamedTimeZone('British Summer Time', 'BST', '+01:00'),
+    new NamedTimeZone('Irish Standard Time', 'IST', '+01:00'),
+    new NamedTimeZone('Central European Time', 'CET', '+01:00'),
+    new NamedTimeZone('Central European Summer Time', 'CEST', '+02:00'),
+    new NamedTimeZone('Eastern European Time', 'EET', '+02:00'),
+    new NamedTimeZone('Kaliningrad Time', 'KALT', '+02:00'),
+    new NamedTimeZone('Eastern European Summer Time', 'EEST', '+03:00'),
+    new NamedTimeZone('Further-eastern European Time', 'FET', '+03:00'),
+    new NamedTimeZone('Moscow Time', 'MSK', '+03:00'),
+    new NamedTimeZone('Turkey Time', 'TRT', '+03:00'),
+    new NamedTimeZone('Minsk Time', 'MINT', '+03:00'),
+    new NamedTimeZone('Armenia Time', 'AMT', '+04:00'),
+    new NamedTimeZone('Azerbaijan Time', 'AZT', '+04:00'),
+    new NamedTimeZone('Georgia Time', 'GET', '+04:00'),
+    new NamedTimeZone('Samara Time', 'SAMT', '+04:00'),
+    new NamedTimeZone('West Kazakhstan Time', 'WKT', '+05:00'),
+    new NamedTimeZone('Yekaterinburg Time', 'YEKT', '+05:00'),
+
+    // United States
+    new NamedTimeZone('Atlantic Standard Time', 'AST', '-04:00'),
+    new NamedTimeZone('Atlantic Daylight Time', 'ADT', '-03:00'),
+    new NamedTimeZone('Eastern Standard Time', 'EST', '-05:00'),
+    new NamedTimeZone('Eastern Daylight Time', 'EDT', '-04:00'),
+    new NamedTimeZone('Central Standard Time', 'CST', '-06:00'),
+    new NamedTimeZone('Central Daylight Time', 'CDT', '-05:00'),
+    new NamedTimeZone('Mountain Standard Time', 'MST', '-07:00'),
+    new NamedTimeZone('Mountain Daylight Time', 'MDT', '-06:00'),
+    new NamedTimeZone('Pacific Standard Time', 'PST', '-08:00'),
+    new NamedTimeZone('Pacific Daylight Time', 'PDT', '-07:00'),
+    new NamedTimeZone('Hawaii–Aleutian Standard Time', 'HST', '-10:00'),
+    new NamedTimeZone('Hawaii–Aleutian Daylight Time', 'HDT', '-09:00'),
+    new NamedTimeZone('Samoa Standard Time', 'SST', '-11:00'),
+    new NamedTimeZone('Chamorro Standard Time', 'ChST', '+10:00'),
+
+    // Americas
+    new NamedTimeZone('Acre Time', 'ACT', '-05:00'),
+    new NamedTimeZone('Amazon Time', 'AMT', '-04:00'),
+    new NamedTimeZone('Antigua and Barbuda Time', 'AST', '-04:00'),
+    new NamedTimeZone('Brasília Time', 'BRT', '-03:00'),
+    new NamedTimeZone('Cuba Standard Time', 'CST', '-05:00'),
+    new NamedTimeZone('Easter Island Standard Time', 'EAST', '-06:00'),
+    new NamedTimeZone('Easter Island Summer Time', 'EASST', '-05:00'),
+    new NamedTimeZone('Fernando de Noronha Time', 'FNT', '-02:00'),
+    new NamedTimeZone('Newfoundland Standard Time', 'NST', '-03:30'),
+    new NamedTimeZone('Newfoundland Daylight Time', 'NDT', '-02:30'),
+    new NamedTimeZone('Saint Pierre and Miquelon Standard Time', 'PMST', '-03:00'),
+    new NamedTimeZone('Saint Pierre and Miquelon Daylight Time', 'PMDT', '-02:00'),
+    new NamedTimeZone('Colombia Time', 'COT', '-05:00'),
+    new NamedTimeZone('Ecuador Time', 'ECT', '-05:00'),
+    new NamedTimeZone('Jamaica Time', 'JAM', '-05:00'),
+    new NamedTimeZone('Paraguay Time', 'PYT', '-04:00'),
+    new NamedTimeZone('Paraguay Summer Time', 'PYST', '-03:00'),
+    new NamedTimeZone('Peru Time', 'PET', '-05:00'),
+    new NamedTimeZone('Uruguay Standard Time', 'UYT', '-03:00'),
+    new NamedTimeZone('Venezuelan Standard Time', 'VET', '-04:00'),
+
+    // Australia
+    new NamedTimeZone('Australian Western Standard Time', 'AWST', '+08:00'),
+    new NamedTimeZone('Australian Central Standard Time', 'ACST', '+09:30'),
+    new NamedTimeZone('Australian Eastern Standard Time', 'AEST', '+10:00'),
+
+    // Africa
+    new NamedTimeZone('Cape Verde Time', 'CVT', '-01:00'),
+    new NamedTimeZone('West Africa Time', 'WAT', '+01:00'),
+    new NamedTimeZone('Central Africa Time', 'CAT', '+02:00'),
+    new NamedTimeZone('South African Standard Time', 'SAST', '+02:00'),
+    new NamedTimeZone('East Africa Time', 'EAT', '+03:00'),
+    new NamedTimeZone('Mauritius Time', 'MUT', '+04:00'),
+    new NamedTimeZone('Seychelles Time', 'SCT', '+04:00'),
+
+    // Asia
+    new NamedTimeZone('Afghanistan Time', 'AFT', '+04:30'),
+    new NamedTimeZone('Arabia Standard Time', 'AST', '+03:00'),
+    new NamedTimeZone('Armenia Time', 'AMT', '+04:00'),
+    new NamedTimeZone('Bangladesh Standard Time', 'BST', '+06:00'),
+    new NamedTimeZone('Bhutan Time', 'BTT', '+06:00'),
+    new NamedTimeZone('Brunei Darussalam Time', 'BNT', '+08:00'),
+    new NamedTimeZone('China Standard Time', 'CST', '+08:00'),
+    new NamedTimeZone('Egypt Standard Time', 'EGY', '+02:00'),
+    new NamedTimeZone('Georgia Time', 'GET', '+04:00'),
+    new NamedTimeZone('Indian Standard Time', 'IST', '+05:30'),
+    new NamedTimeZone('Western Indonesia Time', 'WIB', '+07:00'),
+    new NamedTimeZone('Central Indonesia Time', 'WITA', '+08:00'),
+    new NamedTimeZone('Eastern Indonesia Time', 'WIT', '+09:00'),
+    new NamedTimeZone('Iran Standard Time', 'IRST', '+03:30'),
+    new NamedTimeZone('Iran Time', 'IT', '+03:30'),
+    new NamedTimeZone('Iran Daylight Time', 'IRDT', '+04:30'),
+    new NamedTimeZone('Israel Standard Time', 'IST', '+02:00'),
+    new NamedTimeZone('Japan Standard Time', 'JST', '+09:00'),
+    new NamedTimeZone('Japan Central Standard Time', 'JCST', '+09:00'),
+    new NamedTimeZone('Pyongyang Time', 'PYT', '+09:00'),
+    new NamedTimeZone('Korea Standard Time', 'KST', '+09:00'),
+    new NamedTimeZone('Kyrgyzstan Time', 'KGT', '+06:00'),
+    new NamedTimeZone('Indochina Time', 'ICT', '+07:00'),
+    new NamedTimeZone('Malaysian Standard Time', 'MST', '+08:00'),
+    new NamedTimeZone('Malaysian Time', 'MYT', '+08:00'),
+    new NamedTimeZone('Maldives Time', 'MVT', '+05:00'),
+    new NamedTimeZone('Mongolian Standard Time', 'MST', '+08:00'),
+    new NamedTimeZone('Myanmar Standard Time', 'MMT', '+06:30'),
+    new NamedTimeZone('Nepal Standard Time', 'NPT', '+05:45'),
+    new NamedTimeZone('Gulf Standard Time', 'GST', '+04:00'),
+    new NamedTimeZone('Pakistan Standard Time', 'PKT', '+05:00'),
+    new NamedTimeZone('Philippine Standard Time', 'PST', '+08:00'),
+    new NamedTimeZone('Saudi Arabia Standard Time', 'SAST', '+03:00'),
+    new NamedTimeZone('Singapore Standard Time', 'SST', '+08:00'),
+    new NamedTimeZone('Sri Lanka Standard Time', 'SLST', '+05:30'),
+    new NamedTimeZone('Tajikistan Time', 'TJT', '+05:00'),
+    new NamedTimeZone('Turkmenistan Time', 'TMT', '+05:00'),
+]

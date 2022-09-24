@@ -3,7 +3,8 @@ import Discord from "discord.js"
 export interface Command {
     prepare?: Function,
     data: Discord.SlashCommandBuilder,
-    execute: Function
+    execute: Function,
+    autocomplete?: Function
 }
 
 export class ClientWithCommands extends Discord.Client {
