@@ -89,6 +89,22 @@ client.on('messageCreate', message => {
     console.log(logMessage);
 });
 
+function parseDiscordCommandInteractionOption(options: readonly Discord.CommandInteractionOption[]) : string[] {
+    let cmd: string[] = [];
+    for(let i=0; i < options.length; i++) {
+        const option = options[i];
+        if (option.type == Discord.ApplicationCommandOptionType.SubcommandGroup || option.type == Discord.ApplicationCommandOptionType.Subcommand)
+            cmd.push(option.name);
+        else if (option.name && option.value != undefined)  // parameter CommandInteractionOption.value is optional
+            cmd.push(`${option.name}:${option.value.toString()}`);
+        
+        // recursively add all command line options
+        if(option.options && option.options?.length > 0)
+            cmd.push(...parseDiscordCommandInteractionOption(option.options));
+    }
+    return cmd;
+}
+
 // chat log: print every interaction to console
 client.on('interactionCreate', interaction => {
     if (interaction.type !== Discord.InteractionType.ApplicationCommand) return;
@@ -96,15 +112,11 @@ client.on('interactionCreate', interaction => {
     let channelName = (interaction.channel as Discord.TextChannel).name;
     let username = `${interaction.user.username}#${interaction.user.discriminator}`;
     let cmd: string[] = [interaction.commandName];
+
     // rebuild used commandline via option properties
-    let options: Discord.CommandInteractionOption<Discord.CacheType> | undefined = interaction.options.data[0];
-    while (options) {
-        if (options.type == Discord.ApplicationCommandOptionType.SubcommandGroup || options.type == Discord.ApplicationCommandOptionType.Subcommand)
-            cmd.push(options.name);
-        else if (options.value)  // parameter CommandInteractionOption.value is optional
-            cmd.push(options.value.toString());
-        options = options.options?.[0];
-    }
+    let options = interaction.options.data;
+    cmd.push(...parseDiscordCommandInteractionOption(options));
+
     let commandLine = cmd.join(` `);
     console.log(`APP_CMD [${timestamp} ${channelName}] ${username} : /${commandLine}`);
 });
