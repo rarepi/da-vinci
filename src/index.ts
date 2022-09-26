@@ -5,7 +5,7 @@ import * as steamurl from './commands/passive/steamurl';
 import db, { sync as synchronizeDatabaseModels } from './db'
 import CLI from './commandline'
 import { ClientWithCommands, Command } from './commandType'
-import { token } from './config.json';
+import { token } from '../config.json';
 
 const OWNER_ID = "268469541841928193";
 const USER_LOCALE = Intl.DateTimeFormat().resolvedOptions().locale;

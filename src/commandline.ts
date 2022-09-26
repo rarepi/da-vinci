@@ -1,5 +1,5 @@
 import Discord, { ActivityType } from "discord.js"
-import { clientId, token } from './config.json';
+import { clientId, token } from '../config.json';
 import fs from 'fs';
 import { ClientWithCommands } from './commandType'
 
