@@ -379,7 +379,7 @@ module.exports = {
             let futureTime : DateTime;
             if (cmd === 'at') {
                 futureTime = DateTime.now();
-                if(timezone) futureTime.setZone("UTC"+timezone);
+                if(timezone) futureTime.setZone(timezone);
                 futureTime = futureTime.set({year: year, month: month, day: day, hour: hour, minute: minute, second: second})
             } else if (cmd === 'in') {
                 futureTime = now.plus({
@@ -472,7 +472,7 @@ module.exports = {
 
 		const filtered = NamedTimeZones.filter(ntz => ntz.shortName.startsWith(focusedValue));
 		await interaction.respond(
-			filtered.slice(0,25).map(ntz => ({ name: `${ntz.fullName} (UTC${ntz.UTCOffset})`, value: ntz.UTCOffset })),
+			filtered.slice(0,25).map(ntz => ({ name: `${ntz.shortName}: ${ntz.fullName} (${ntz.UTCOffset})`, value: ntz.UTCOffset })),
         );
     }
 };
