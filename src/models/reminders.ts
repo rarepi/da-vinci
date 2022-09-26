@@ -1,23 +1,15 @@
 import Sequelize, { CreationOptional, InferAttributes, InferCreationAttributes, Model } from 'sequelize';
-import { DateTime } from 'luxon';
-
-export enum TimerType {
-    INTERVAL = 1,
-    TIMEOUT = 2
-} 
+import { LongTimer } from '../longTimer';
 
 export class Reminder extends Model<InferAttributes<Reminder>, InferCreationAttributes<Reminder>> {
     declare id: number;
     declare userId: string;
     declare channelId: CreationOptional<string>;
-    declare timerType: CreationOptional<TimerType>;
-    declare repeat: number;
+    declare repeat: CreationOptional<number>;
     declare time: Date;
     declare text: CreationOptional<string>;
-    declare timer: NodeJS.Timeout | NodeJS.Timer | undefined;
-    static associate(models: any) {
-
-    }
+    declare timer: LongTimer | undefined;
+    static associate(models: any) { }
 }
 
 // imported by db
@@ -45,14 +37,9 @@ export default function (sequelize: Sequelize.Sequelize) {
             allowNull: false,
             unique: false,
         },
-        timerType: {
-            type: Sequelize.INTEGER,
-            allowNull: true,
-            unique: false
-        },
         repeat: {
             type: Sequelize.INTEGER,
-            allowNull: false,
+            allowNull: true,
             unique: false
         },
         text: {
