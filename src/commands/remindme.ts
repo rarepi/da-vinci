@@ -52,6 +52,7 @@ async function startupReminders(client: Discord.Client) {
                 await notification?.edit(`${notification.content}\n\nNote: This reminder was originally scheduled for ${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} but I was unavailable at the time. Sorry!`)
                 cancelReminder(reminder.id, user);
             } else {    // reminder date lies in the future
+                console.debug(`Reminder #${reminder.id} set to ${msToFutureTime/1000} seconds.`);
                 // schedule reminder once
                 const timer = new LongTimer(
                     async () => {
@@ -76,12 +77,12 @@ async function startupReminders(client: Discord.Client) {
                     msToFutureTime = futureTime.toMillis() - now.toMillis();
                 }
             }
-            console.debug(`Resuming reminder #${reminder.id} in ${msToFutureTime/1000} seconds.`);
 
             if (reminder.repeat === TimeType.custom) {
                 reminder.destroy();                         // TODO resumption of custom length repeated timers is currently not supported
                 console.info(`Custom length Reminder #${reminder.id} has been purged due to missing implementations.`);
             } else {
+                console.debug(`Reminder #${reminder.id} set to ${msToFutureTime/1000} seconds. Set to repeat every ${TimeType[reminder.repeat]}.`);
                 // schedule repeated reminder in relation to first date
                 const timer = new LongTimer(
                     () => {
@@ -405,10 +406,22 @@ module.exports = {
 
             // calculate milliseconds till reminder date
             const msToFutureTime = futureTime.toMillis() - now.toMillis();
-            if(msToFutureTime > 0) {
-                interaction.editReply(`Alright! I'll notify you on **${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})**. You can cancel this by using \`/remindme cancel ${reminder.id}\``)
+
+            // send confirmation / rejection message
+            if (msToFutureTime > 0) {
+                let confirmationMsg: string;
+                if(!repeatTimeType) {
+                    confirmationMsg = `Alright! I'll notify you on **${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})**.`;
+                } else if (repeatTimeType === TimeType.custom) {
+                    confirmationMsg = `Alright! I'll notify you every ${Math.ceil(msToFutureTime/1000)} seconds. First notification will be on **${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})**.`;
+                } else {
+                    confirmationMsg = `Alright! I'll notify you on **${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})**`
+                        + ` and will then continue doing so every ${TimeType[reminder.repeat]}.`;
+                }
+                confirmationMsg = confirmationMsg.concat(`\nYou can cancel this reminder by using: \`/remindme cancel ${reminder.id}\``);
+                interaction.editReply(confirmationMsg)
             } else {
-                interaction.editReply(`Sorry, I can't notify you in the past.\n...\n...or can I?`)
+                interaction.editReply(`Sorry, I can't notify you in the past.\n...\n...or can I?`);
                 return;
             }
 

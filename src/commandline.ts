@@ -1,4 +1,4 @@
-import Discord from "discord.js"
+import Discord, { ActivityType } from "discord.js"
 import { clientId, token } from './config.json';
 import fs from 'fs';
 import { ClientWithCommands } from './commandType'
@@ -14,8 +14,9 @@ class CLI {
     }
 
     private exit = (code?: number | string) => {
+        this.client.user?.setStatus('dnd');
         code = Number(code);
-        console.info(`Shutting down...`)
+        console.info(`Shutting down...`);
         process.exit(code);
     }
 

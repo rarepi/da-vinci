@@ -177,7 +177,14 @@ client.once('ready', () => {
         }
     });
 
-    console.info('Ready!');
+    client.user?.setPresence({
+        status: 'online',
+        activities: [{
+            name: "you",
+            type: Discord.ActivityType.Watching
+        }]
+    });
+    console.info("Ready!");
 });
 
 // execute various startup procedures
