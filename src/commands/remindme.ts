@@ -410,12 +410,13 @@ module.exports = {
             // send confirmation / rejection message
             if (msToFutureTime > 0) {
                 let confirmationMsg: string;
+                const futureDateString: string = `${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})`;
                 if(!repeatTimeType) {
-                    confirmationMsg = `Alright! I'll notify you on **${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})**.`;
+                    confirmationMsg = `Alright! I'll notify you on **${futureDateString}**.`;
                 } else if (repeatTimeType === TimeType.custom) {
-                    confirmationMsg = `Alright! I'll notify you every ${Math.ceil(msToFutureTime/1000)} seconds. First notification will be on **${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})**.`;
+                    confirmationMsg = `Alright! I'll notify you every ${Math.ceil(msToFutureTime/1000)} seconds. First notification will be on **${futureDateString}**.`;
                 } else {
-                    confirmationMsg = `Alright! I'll notify you on **${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})**`
+                    confirmationMsg = `Alright! I'll notify you on **${futureDateString}**`
                         + ` and will then continue doing so every ${TimeType[reminder.repeat]}.`;
                 }
                 confirmationMsg = confirmationMsg.concat(`\nYou can cancel this reminder by using: \`/remindme cancel ${reminder.id}\``);
