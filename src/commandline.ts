@@ -1,7 +1,7 @@
-import Discord, { ActivityType } from "discord.js"
+import Discord from "discord.js"
 import { clientId, token } from '../config.json';
-import fs from 'fs';
-import { ClientWithCommands } from './commandType'
+import { ClientWithCommands } from './commandType';
+import { sendDirectMessage, sendChannelMessage } from './DiscordFunctionWrappers'
 
 type FunctionMap = {
     [name:string]: (...args:any) => void
@@ -20,26 +20,12 @@ class CLI {
         process.exit(code);
     }
 
-    private say = (channelId: string, ...message: string[]) => {
-        this.client.channels.fetch(channelId).then(channel => {
-            if(channel?.isTextBased() && !channel.isDMBased()) {
-                channel.send(message.join(' ')).catch((error:any) => console.error(`[${error.code}] ${error.message}`));
-            }
-        }).catch((error:any) => {
-            if(error.code == 10003) {
-                console.error(`Channel not found.`)
-            } else console.error(`[${error.code}] ${error.message}`)
-        });
+    private say = async (channelId: string, ...message: string[]) => {
+        await sendChannelMessage(this.client, channelId, ...message);
     }
 
-    private dm = (userId: string, ...message: string[]) => {
-        this.client.users.createDM(userId).then(dm => {
-            dm.send(message.join(' ')).catch((error:any) => console.error(`[${error.code}] ${error.message}`));
-        }).catch((error:any) => {
-            if(error.code == 50033) {
-                console.error(`Invalid user.`)
-            } else console.error(`[${error.code}] ${error.message}`)
-        });
+    private dm = async (userId: string, ...message: string[]) => {
+        await sendDirectMessage(this.client, userId, ...message);
     }
 
     private registerCommands = () => {
@@ -47,7 +33,7 @@ class CLI {
     
         for (const cmd of this.client.commands) {
             commands_json.push(cmd[1].data.toJSON());
-            console.info(`Added ${cmd[0]} to command register.`)
+            console.info(`Added ${cmd[0]} to command register.`);
         }
     
         const rest = new Discord.REST({ version: '10' }).setToken(token);

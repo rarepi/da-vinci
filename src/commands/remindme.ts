@@ -5,6 +5,7 @@ import databaseModels from '../db';
 import { Reminder } from "../models/reminders";
 import { NamedTimeZones } from "../timezones";
 import { LongTimer } from "../longTimer";
+import { sendDirectMessage } from "../DiscordFunctionWrappers";
 
 const ReminderModel = databaseModels.Reminder;
 
@@ -28,7 +29,7 @@ enum TimeType {
     minute = 6,
     second = 7,
     millisecond = 8,
-    custom = 9  // custom time given in ms
+    custom = 9
 }
 
 // virtual fields can not be retrieved by fetching from database, so this Map stores a copy of every active reminder including their running timers
@@ -37,7 +38,7 @@ const ActiveReminders = new Map<number, Reminder>();
 async function startupReminders(client: Discord.Client) {
     const Reminders : Reminder[] = await ReminderModel.findAll();
 
-    console.info(`Initiating ${Reminders.length} reminders...`)
+    console.info(`Initiating ${Reminders.length} reminders...`);
     for (const reminder of Reminders) {
         const now = DateTime.now();     // sets a new "now" every time a new reminder is looked at
         let futureTime = DateTime.fromJSDate(reminder.time);
@@ -49,7 +50,7 @@ async function startupReminders(client: Discord.Client) {
             if (msToFutureTime <= 0) {   // if reminder date has passed already
                 // send notification with notice of it happening late
                 const notification = await notifyUser(user, channel, reminder);
-                await notification?.edit(`${notification.content}\n\nNote: This reminder was originally scheduled for ${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} but I was unavailable at the time. Sorry!`)
+                await notification?.edit(`${notification.content}\n\nNote: This reminder was originally scheduled for ${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} but I was unavailable at the time. Sorry!`);
                 cancelReminder(reminder.id, user);
             } else {    // reminder date lies in the future
                 console.debug(`Reminder #${reminder.id} set to ${msToFutureTime/1000} seconds.`);
@@ -60,7 +61,7 @@ async function startupReminders(client: Discord.Client) {
                         cancelReminder(reminder.id, user);
                     },
                     msToFutureTime
-                )
+                );
                 timer.start();
                 reminder.timer = timer;
                 ActiveReminders.set(reminder.id, reminder);
@@ -70,7 +71,7 @@ async function startupReminders(client: Discord.Client) {
             let msToFutureTime = futureTime.toMillis() - now.toMillis();            // ms between "now" and next timeout
             if(msToFutureTime <= 0) {                                               // if reminder date has passed already, send notification with notice of it happening late
                 const notification = await notifyUser(user, channel, reminder);
-                await notification?.edit(`${notification.content}\n\nNote: This repeated reminder was originally scheduled next for ${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} but I was unavailable at the time. Sorry!`)
+                await notification?.edit(`${notification.content}\n\nNote: This repeated reminder was originally scheduled next for ${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} but I was unavailable at the time. Sorry!`);
 
                 while (msToFutureTime < 0) {     // find next future notification date
                     futureTime = getNextTimeoutDateIteration(reminder.repeat, futureTime);
@@ -121,14 +122,16 @@ async function cancelReminder(id: number, user: Discord.User) : Promise<boolean>
 }
 
 async function notifyUser(user: Discord.User, channel: Discord.TextBasedChannel | null, reminder: Reminder) : Promise<Discord.Message | null> {
-    let text = reminder.text ?? `This is your scheduled notification.\nThere was no message provided.`;
+    let text = reminder.text ?? `This is your scheduled notification. There was no message provided.`;
     if (reminder.repeat)
-        text = text.concat(`\n\nTo cancel this repeatedly scheduled reminder, use \`/remindme cancel ${reminder.id}\``)
+        text = text.concat(`\n\nTo cancel this repeatedly scheduled reminder, use \`/remindme cancel ${reminder.id}\``);
+
+    const messageContent = `${user.toString()} ${text}`;
         
     if (channel)
-        return await channel.send(`${user.toString()} ${text}`);
+        return await channel.send(messageContent);
     else
-        ; // TODO
+        await sendDirectMessage(user.client, user.id, messageContent);
     return null;
 }
 
@@ -470,7 +473,7 @@ module.exports = {
     async autocomplete(interaction: Discord.AutocompleteInteraction) {
         const focusedValue = interaction.options.getFocused();
 
-		const filtered = NamedTimeZones.filter(ntz => ntz.shortName.startsWith(focusedValue));
+		const filtered = NamedTimeZones.filter(ntz => ntz.shortName.toLowerCase().startsWith(focusedValue.toLowerCase()));
 		await interaction.respond(
 			filtered.slice(0,25).map(ntz => ({ name: `${ntz.shortName}: ${ntz.fullName} (${ntz.UTCOffset})`, value: ntz.UTCOffset })),
         );
