@@ -4,6 +4,7 @@ import Fs from 'fs';
 import Path from 'path';
 import Discord from "discord.js"
 
+const RGX_REDDIT_URL = /^[^\r\n]*(https?:\/\/(?:www\.)?reddit\.com\/r\/\w+?\/(?:comments\/)?\w+\/?)[^\r\n]*$/gm
 const PATH_TO_DL_DIR = Path.resolve("./", 'temp');
 Fs.promises.mkdir(PATH_TO_DL_DIR, { recursive: true }).catch(console.error);
 
@@ -67,6 +68,18 @@ async function downloadFile(url: string, filename: string): Promise<string> {
         })
         writer.on('error', reject)
     })
+}
+
+export function setupRedditVideoDownloader(client: Discord.Client) {
+    client.on('messageCreate', message => {
+        if (message.author.bot) return; // ignore bot messages, including my own
+        const match = RGX_REDDIT_URL.exec(message.content);
+        if (match) {
+            let reddit_url = match[1];
+            console.debug(`Reddit link detected: ${reddit_url}`);
+            execute(message, reddit_url);
+        } else return;
+    });
 }
 
 /**

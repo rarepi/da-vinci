@@ -7,6 +7,20 @@ type FunctionMap = {
     [name:string]: (...args:any) => void
 };
 
+export function setupCLI(client: ClientWithCommands) {
+    const stdin = process.openStdin();
+    const cli = new CLI(client);
+
+    stdin.addListener("data", function(data) {
+        const input : string[] = data.toString().trim().split(' ');
+        const command : string = input[0];
+        const args = input.splice(1);
+        if(cli.callables.hasOwnProperty(command)) {
+            cli.callables[command](...args);
+        }
+    });
+}
+
 class CLI {
     client: ClientWithCommands;
     constructor(client: ClientWithCommands) {
@@ -52,6 +66,3 @@ class CLI {
         register: this.registerCommands,
     }
 }
-
-
-export default CLI;
