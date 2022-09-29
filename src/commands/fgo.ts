@@ -1155,17 +1155,23 @@ async function databaseUpdateTask() {
     const updateThreshold = new Date().getTime() - Database.getUpdateInterval(); // current time in milliseconds minus schedule interval
     if (databaseRevision?.lastUpdate && databaseRevision.lastUpdate > updateThreshold) {
         console.log("No database update necessary.");
-    } else {
-        console.log("Looking for database updates...");
-        const html_full = (await Axios.get(GAMEPRESS_URL_BANNERS)).data;
-        const bmatch = GAMEPRESS_RGX.banners.exec(html_full);
-        const smatch = GAMEPRESS_RGX.servants.exec(html_full);
-        const json_banner_version: number = Number(bmatch?.[2]);
-        const json_servant_version: number = Number(smatch?.[2]);
-        if (json_banner_version != databaseRevision?.Banner || json_servant_version != databaseRevision?.Servant) {
-            console.info(`Database revisions [${databaseRevision?.Banner}, ${databaseRevision?.Servant}] differ from gamepress revisions [${json_banner_version}, ${json_servant_version}] \nStarting database refresh...`)
-            await execBannerRefresh();
-        }
+    // } else {
+    //     console.log("Looking for database updates...");
+    //     const html_full = (await Axios.get(GAMEPRESS_URL_BANNERS)).data;
+    //     const bmatch = GAMEPRESS_RGX.banners.exec(html_full);
+    //     const smatch = GAMEPRESS_RGX.servants.exec(html_full);
+    //     const json_banner_version: number = Number(bmatch?.[2]);
+    //     const json_servant_version: number = Number(smatch?.[2]);
+    //     console.debug(`Retrieved Banner Revision #${json_banner_version} and Servant Revision #${json_servant_version}.`);
+    //     if (json_banner_version != databaseRevision?.Banner || json_servant_version != databaseRevision?.Servant) {
+    //         console.info(`Database revisions [${databaseRevision?.Banner}, ${databaseRevision?.Servant}] differ from gamepress revisions [${json_banner_version}, ${json_servant_version}] \nStarting database update...`)
+    //         await execBannerRefresh();
+    //     } else {
+    //         console.debug(`This equals local Banner Revision #${databaseRevision?.Banner} and local Servant Revision #${databaseRevision?.Servant}.`)
+    //     }
+    } else {    // revision ID of the json files seems to not be updated as regularily as I expected, so we just run the update everytime the schedule comes up
+        console.info(`Starting database update...`);
+        await execBannerRefresh();
     }
 }
 

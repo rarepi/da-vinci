@@ -88,7 +88,7 @@ export function setupRedditVideoDownloader(client: Discord.Client) {
  * @param {string} url The URL to the reddit video post
  * @todo rework the way the json data structure is used here
  */
-export async function execute(message: Discord.Message, url: string) {
+async function execute(message: Discord.Message, url: string) {
     const result = (await Axios.get(`${url}.json`));
 
     // extract video and audio URLs

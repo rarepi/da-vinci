@@ -173,7 +173,7 @@ function login() {
     return client.login(token);
 }
 
-// execute various startup procedures
+// execute startup sequence
 synchronizeDatabaseModels()
 .then(() => readCommandFiles())
 .then(() => setupChatLog())
