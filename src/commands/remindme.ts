@@ -399,20 +399,28 @@ module.exports = {
                 return;
             }
 
-            // create reminder in database
-            const reminder = await createReminder(
-                interaction.user.id,
-                interaction.channel?.id,
-                repeatTimeType,
-                futureTime,
-                text
-            );
+            if(!futureTime.isValid) {
+                if(futureTime.invalidReason === "unsupported zone")
+                    interaction.editReply(`Invalid timezone. Just supplying the timezone abbreviation by itself may not always work, so please use the timezones supplied by the autocomplete list or enter it directly as a UTC time offset. (e.g. \`UTC+09\`)`);
+                else
+                    interaction.editReply(`Invalid date. ${futureTime.invalidReason}: ${futureTime.invalidExplanation}`);
+                return;
+            }
 
+            let reminder: Reminder;
             // calculate milliseconds till reminder date
             const msToFutureTime = futureTime.toMillis() - now.toMillis();
 
             // send confirmation / rejection message
             if (msToFutureTime > 0) {
+                // create reminder in database
+                reminder = await createReminder(
+                    interaction.user.id,
+                    interaction.channel?.id,
+                    repeatTimeType,
+                    futureTime,
+                    text
+                );
                 let confirmationMsg: string;
                 const futureDateString: string = `${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})`;
                 if(!repeatTimeType) {
@@ -424,7 +432,7 @@ module.exports = {
                         + ` and will then continue doing so every ${TimeType[reminder.repeat]}.`;
                 }
                 confirmationMsg = confirmationMsg.concat(`\nYou can cancel this reminder by using: \`/remindme cancel ${reminder.id}\``);
-                interaction.editReply(confirmationMsg)
+                interaction.editReply(confirmationMsg);
             } else {
                 interaction.editReply(`Sorry, I can't notify you in the past.\n...\n...or can I?`);
                 return;
