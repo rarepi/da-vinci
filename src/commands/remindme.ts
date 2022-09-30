@@ -102,6 +102,7 @@ async function startupReminders(client: Discord.Client) {
             }
         }
     }
+    console.info(`${ActiveReminders.size} reminders are now active.`);
 }
 
 async function cancelReminder(id: number, user: Discord.User) : Promise<boolean> {
