@@ -44,7 +44,7 @@ Object.keys(models).forEach((modelName: string) => {
 
 export default models;
 
-export class Database {
+export abstract class Database {
     static runDatabaseScheduler(databaseUpdateTask: () => void) {
         if (DATABASE_UPDATE_INTERVAL > 2147483647) {
             console.error(`Invalid database update interval. Aborting scheduler.`)

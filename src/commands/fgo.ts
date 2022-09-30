@@ -1154,7 +1154,7 @@ async function databaseUpdateTask() {
     let databaseRevision: DatabaseRevision | undefined = Database.getDatabaseRevision();
     const updateThreshold = new Date().getTime() - Database.getUpdateInterval(); // current time in milliseconds minus schedule interval
     if (databaseRevision?.lastUpdate && databaseRevision.lastUpdate > updateThreshold) {
-        console.log("No database update necessary.");
+        console.debug("No database update necessary.");
     // } else {
     //     console.log("Looking for database updates...");
     //     const html_full = (await Axios.get(GAMEPRESS_URL_BANNERS)).data;
