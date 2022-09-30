@@ -382,8 +382,8 @@ module.exports = {
             let futureTime : DateTime;
             if (cmd === 'at') {
                 futureTime = DateTime.now();
-                if(timezone) futureTime.setZone(timezone);
-                futureTime = futureTime.set({year: year, month: month, day: day, hour: hour, minute: minute, second: second})
+                if(timezone) futureTime = futureTime.setZone(timezone);
+                futureTime = futureTime.set({year: year, month: month, day: day, hour: hour, minute: minute, second: second});
             } else if (cmd === 'in') {
                 futureTime = now.plus({
                     years: year,
