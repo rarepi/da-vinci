@@ -407,48 +407,45 @@ module.exports = {
                 return;
             }
 
-            let reminder: Reminder;
             // calculate milliseconds till reminder date
             const msToFutureTime = futureTime.toMillis() - now.toMillis();
 
-            // send confirmation / rejection message
-            if (msToFutureTime > 0) {
-                // create reminder in database
-                reminder = await createReminder(
-                    interaction.user.id,
-                    interaction.channel?.id,
-                    repeatTimeType,
-                    futureTime,
-                    text
-                );
-                let confirmationMsg: string;
-                const futureDateString: string = `${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})`;
-                if(!repeatTimeType) {
-                    confirmationMsg = `Alright! I'll notify you on **${futureDateString}**.`;
-                } else if (repeatTimeType === TimeType.custom) {
-                    confirmationMsg = `Alright! I'll notify you every ${Math.ceil(msToFutureTime/1000)} seconds. First notification will be on **${futureDateString}**.`;
-                } else {
-                    confirmationMsg = `Alright! I'll notify you on **${futureDateString}**`
-                        + ` and will then continue doing so every ${TimeType[reminder.repeat]}.`;
-                }
-                confirmationMsg = confirmationMsg.concat(`\nYou can cancel this reminder by using: \`/remindme cancel ${reminder.id}\``);
-                interaction.editReply(confirmationMsg);
-            } else {
+            // send rejection message if reminder date lies in the past
+            if (msToFutureTime < 0) {
                 interaction.editReply(`Sorry, I can't notify you in the past.\n...\n...or can I?`);
                 return;
             }
 
+            const reminder = await createReminder(
+                interaction.user.id,
+                interaction.channel?.id,
+                repeatTimeType,
+                futureTime,
+                text
+            );
+            let confirmationMsg: string;
+            const futureDateString: string = `${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})`;
+            if(!repeatTimeType) {
+                confirmationMsg = `Alright! I'll notify you on **${futureDateString}**.`;
+            } else if (repeatTimeType === TimeType.custom) {
+                confirmationMsg = `Alright! I'll notify you every ${Math.round(msToFutureTime/1000)} seconds. First notification will be on **${futureDateString}**.`;
+            } else {
+                confirmationMsg = `Alright! I'll notify you on **${futureDateString}**`
+                    + ` and will then continue doing so every ${TimeType[reminder.repeat]}.`;
+            }
+            confirmationMsg += `\nYou can cancel this reminder by using: \`/remindme cancel ${reminder.id}\``;
+            interaction.editReply(confirmationMsg);
+
             // create timer and add timer to timer collection
+            let timer : LongTimer;
             if(repeatTimeType == 9) {  // 9 == run every msToFutureTime milliseconds on repeat
-                const timer = new LongTimer(
+                timer = new LongTimer(
                     () => notifyUser(interaction.user, interaction.channel, reminder),
                     msToFutureTime,
                     repeatTimeType > 0
                 );
-                timer.start();
-                reminder.timer = timer;
             } else if(cmd === 'at' && repeatTimeType) { // run every repeatType on repeat
-                const timer = new LongTimer(
+                timer = new LongTimer(
                     () => {
                         notifyUser(interaction.user, interaction.channel, reminder);
                         setNextReminderTimeout(
@@ -460,10 +457,8 @@ module.exports = {
                     msToFutureTime,
                     repeatTimeType > 0
                 );
-                timer.start();
-                reminder.timer = timer;
             } else {
-                const timer = new LongTimer(
+                timer = new LongTimer(
                     () => {
                         notifyUser(interaction.user, interaction.channel, reminder);
                         cancelReminder(reminder.id, interaction.user);
@@ -471,12 +466,13 @@ module.exports = {
                     msToFutureTime,
                     repeatTimeType != null
                 );
-                timer.start();
-                reminder.timer = timer;
             }
-            // add reminder to active reminders and persist it to database
+            // start timer and add it to reminder
+            timer.start();
+            reminder.timer = timer;
+            // add reminder to active reminders
             ActiveReminders.set(reminder.id, reminder);
-            reminder.save();
+            //reminder.save();  // timer is a virtual attribute - no need to update database if nothing else was changed since creation
         }
     },
     async autocomplete(interaction: Discord.AutocompleteInteraction) {
