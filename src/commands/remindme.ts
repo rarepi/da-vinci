@@ -357,7 +357,6 @@ module.exports = {
      * @param {Discord.ChatInputCommandInteraction} interaction The Discord interaction that called this command
      */
     async execute(interaction: Discord.ChatInputCommandInteraction) {
-        // TODO: DM has no channel
         const now = DateTime.fromJSDate(interaction.createdAt);
         await interaction.deferReply();
         const cmd = interaction.options.getSubcommand();
@@ -382,10 +381,11 @@ module.exports = {
 
             let futureTime : DateTime;
             if (cmd === 'at') {
-                futureTime = DateTime.now();
-                if(timezone) futureTime = futureTime.setZone(timezone);
-                futureTime = futureTime.set({year: year, month: month, day: day, hour: hour, minute: minute, second: second});
+                // set zone if given, then set timestamp
+                futureTime = (timezone ? now.setZone(timezone) : now)
+                    .set({year: year, month: month, day: day, hour: hour, minute: minute, second: second});
             } else if (cmd === 'in') {
+                // add given time to current time
                 futureTime = now.plus({
                     years: year,
                     months: month,
