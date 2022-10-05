@@ -1069,10 +1069,11 @@ async function execBannerNext(count: number): Promise<EmbedBuilder[]> {
  * Synchronizes the local database with gamepress' data on both servants and summoning banners
    * @returns {Promise<[number, number]>} the new number of servants and the new number of banners in the database
  */
-async function execBannerRefresh(): Promise<[number, number]> {
+async function execBannerRefresh(): Promise<[number, string, number, string]> {
     let servants: Servant[];
     let servantDataRevision: number | undefined;
     [servants, servantDataRevision] = await fetchServants();
+    const scount_old = await ServantModel.count();
 
     console.info(`Syncing ${servants.length} servants to database ...`);
     const resultS = await sequelize.transaction(async (t) => {
@@ -1107,12 +1108,19 @@ async function execBannerRefresh(): Promise<[number, number]> {
             //else console.info(`${servant.name} has not been created!`)
         }
     });
-    let scount = await ServantModel.count();
-    console.info(`Finished syncing Servants database. (${scount} servants)`)
+
+    // create return values indicating total and new servants
+    const scount_new = await ServantModel.count();
+    const scount_diff = scount_new - scount_old
+    let scount_diff_str = ``;
+    if(scount_diff !== 0)
+        scount_diff_str = (scount_diff > 0 ? ` (+` : ` (`) + scount_diff.toString() + `)`;
+    console.info(`Finished syncing ${scount_new} Servants to database.` + scount_diff_str)
 
     let banners: Banner[];
     let bannerDataRevision: number | undefined;
     [banners, bannerDataRevision] = await fetchBanners();
+    const bcount_old = await BannerModel.count();
 
     console.info(`Syncing ${banners.length} banners to database ...`)
     const resultB = await sequelize.transaction(async (t) => {
@@ -1143,11 +1151,17 @@ async function execBannerRefresh(): Promise<[number, number]> {
             //else console.info(`${servant.name} has not been created!`)
         }
     });
-    let bcount = await BannerModel.count();
-    console.info(`Finished syncing Banners database. (${bcount} banners)`)
+
+    // create return values indicating total and new banners
+    const bcount_new = await BannerModel.count();
+    const bcount_diff = bcount_new - bcount_old
+    let bcount_diff_str = ``;
+    if(bcount_diff !== 0)
+        bcount_diff_str = (bcount_diff > 0 ? ` (+` : ` (`) + bcount_diff.toString() + `)`;
+    console.info(`Finished syncing ${bcount_new} Banners to database.` + bcount_diff_str);
 
     Database.setDatabaseRevision(servantDataRevision, bannerDataRevision, new Date().getTime());
-    return [scount, bcount];
+    return [scount_new, scount_diff_str, bcount_new, bcount_diff_str];
 }
 
 async function databaseUpdateTask() {
@@ -1266,11 +1280,11 @@ module.exports = {
                 //if(interaction.user.id == '')	//TODO maybe
                 await interaction.deferReply({ ephemeral: true });
 
-                let [scount, bcount] = await execBannerRefresh();
+                let [scount, scount_diff_str, bcount, bcount_diff_str] = await execBannerRefresh();
 
                 // finalize confirmation message
                 let messageOptions: Discord.InteractionReplyOptions = {
-                    content: `Finished syncing gamepress data to database. (${scount} servants, ${bcount} banners)`,
+                    content: `Finished syncing gamepress data to database. Database now tracks records of ${scount} servants${scount_diff_str} and ${bcount} banners${bcount_diff_str}.`,
                     ephemeral: true
                 };
                 await interaction.editReply(messageOptions);
