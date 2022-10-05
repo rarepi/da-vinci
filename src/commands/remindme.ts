@@ -9,13 +9,14 @@ import { sendDirectMessage } from "../DiscordFunctionWrappers";
 
 const ReminderModel = databaseModels.Reminder;
 
-async function createReminder(userId: string, channelId: string | undefined, repeat: TimeType | null, time: DateTime, text: string | null) : Promise<Reminder> {
+async function createReminder(userId: string, channelId: string | undefined, repeat: TimeType | null, time: DateTime, text: string | null, isPrivate: boolean) : Promise<Reminder> {
     return await ReminderModel.create({
         userId: userId,
         channelId: channelId,
         repeat: repeat,
         time: time,
-        text: text
+        text: text,
+        private: isPrivate
     });
 }
 
@@ -49,15 +50,15 @@ async function startupReminders(client: Discord.Client) {
             const msToFutureTime = futureTime.toMillis() - now.toMillis();
             if (msToFutureTime <= 0) {   // if reminder date has passed already
                 // send notification with notice of it happening late
-                const notification = await notifyUser(user, channel, reminder);
-                await notification?.edit(`${notification.content}\n\nNote: This reminder was originally scheduled for ${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} but I was unavailable at the time. Sorry!`);
+                const notification = await sendReminderMessage(user, channel, reminder);
+                await notification?.edit(`${notification.content}\n\nNote: This reminder was originally scheduled for ${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName}) but I was unavailable at the time.`);
                 cancelReminder(reminder.id, user);
             } else {    // reminder date lies in the future
                 console.debug(`Reminder #${reminder.id} set to ${msToFutureTime/1000} seconds.`);
                 // schedule reminder once
                 const timer = new LongTimer(
                     async () => {
-                        await notifyUser(user, channel, reminder);
+                        await sendReminderMessage(user, channel, reminder);
                         cancelReminder(reminder.id, user);
                     },
                     msToFutureTime
@@ -70,13 +71,14 @@ async function startupReminders(client: Discord.Client) {
         } else if (reminder.repeat) {                                       // if reminder is on repeat
             let msToFutureTime = futureTime.toMillis() - now.toMillis();            // ms between "now" and next timeout
             if(msToFutureTime <= 0) {                                               // if reminder date has passed already, send notification with notice of it happening late
-                const notification = await notifyUser(user, channel, reminder);
-                await notification?.edit(`${notification.content}\n\nNote: This repeated reminder was originally scheduled next for ${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} but I was unavailable at the time. Sorry!`);
+                const notification = await sendReminderMessage(user, channel, reminder);
+                await notification?.edit(`${notification.content}\nNote: This repeated reminder was originally scheduled next for ${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName}) but I was unavailable at the time.`);
 
                 while (msToFutureTime < 0) {     // find next future notification date
                     futureTime = getNextTimeoutDateIteration(reminder.repeat, futureTime);
                     msToFutureTime = futureTime.toMillis() - now.toMillis();
                 }
+                reminder.time = futureTime.toJSDate();
             }
 
             if (reminder.repeat === TimeType.custom) {
@@ -87,9 +89,9 @@ async function startupReminders(client: Discord.Client) {
                 // schedule repeated reminder in relation to first date
                 const timer = new LongTimer(
                     () => {
-                        notifyUser(user, channel, reminder);
+                        sendReminderMessage(user, channel, reminder);
                         setNextReminderTimeout(
-                            () => notifyUser(user, channel, reminder),
+                            () => sendReminderMessage(user, channel, reminder),
                             reminder,
                             reminder.repeat
                         );
@@ -101,6 +103,7 @@ async function startupReminders(client: Discord.Client) {
                 ActiveReminders.set(reminder.id, reminder);
             }
         }
+        reminder.save();    // persist any reminder changes to db 
     }
     console.info(`${ActiveReminders.size} reminders are now active.`);
 }
@@ -122,18 +125,17 @@ async function cancelReminder(id: number, user: Discord.User) : Promise<boolean>
     return true;
 }
 
-async function notifyUser(user: Discord.User, channel: Discord.TextBasedChannel | null, reminder: Reminder) : Promise<Discord.Message | null> {
+async function sendReminderMessage(user: Discord.User, channel: Discord.TextBasedChannel | null, reminder: Reminder) : Promise<Discord.Message | null> {
     let text = reminder.text ?? `This is your scheduled notification. There was no message provided.`;
     if (reminder.repeat)
-        text = text.concat(`\n\nTo cancel this repeatedly scheduled reminder, use \`/remindme cancel ${reminder.id}\``);
+        text = text.concat(`\n\nTo cancel this repeatedly scheduled reminder, use \`/remindme cancel ${reminder.id}\`.`);
 
     const messageContent = `${user.toString()} ${text}`;
-        
-    if (channel)
-        return await channel.send(messageContent);
+
+    if (channel && !reminder.private)
+        return await channel.send({ content: messageContent });
     else
-        await sendDirectMessage(user.client, user.id, messageContent);
-    return null;
+        return await sendDirectMessage(user.client, user.id, messageContent) ?? null;   // fails without crash if user has DMs disabled
 }
 
 function getNextTimeoutDateIteration(timeType: TimeType, timeoutDate: DateTime) : DateTime {
@@ -269,6 +271,11 @@ module.exports = {
                 .setName('text')
                 .setDescription('An optional text to be sent with the reminder.')
                 .setRequired(false)
+            )
+            .addBooleanOption(option => option
+                .setName('private')
+                .setDescription('Hide reminder from other users?')
+                .setRequired(false)
             ),
         )
         .addSubcommand(cmd => cmd
@@ -342,6 +349,11 @@ module.exports = {
                 .setName('text')
                 .setDescription('An optional text to be sent with the reminder.')
                 .setRequired(false)
+            )
+            .addBooleanOption(option => option
+                .setName('private')
+                .setDescription('Hide reminder from other users?')
+                .setRequired(false)
             ),
         )
         .addSubcommand(cmd => cmd
@@ -378,6 +390,7 @@ module.exports = {
             const _repeatTimeType = interaction.options.getInteger('repeat');   // aux
             const repeatTimeType: TimeType | null = (_repeatTimeType && _repeatTimeType > 0) ? _repeatTimeType : null ;   // null if no repetition
             const text = interaction.options.getString('text');
+            const isPrivate = interaction.options.getBoolean('private') ?? false;   // default is false
 
             let futureTime : DateTime;
             if (cmd === 'at') {
@@ -421,7 +434,8 @@ module.exports = {
                 interaction.channel?.id,
                 repeatTimeType,
                 futureTime,
-                text
+                text,
+                isPrivate
             );
             let confirmationMsg: string;
             const futureDateString: string = `${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})`;
@@ -440,16 +454,16 @@ module.exports = {
             let timer : LongTimer;
             if(repeatTimeType == 9) {  // 9 == run every msToFutureTime milliseconds on repeat
                 timer = new LongTimer(
-                    () => notifyUser(interaction.user, interaction.channel, reminder),
+                    () => sendReminderMessage(interaction.user, interaction.channel, reminder),
                     msToFutureTime,
                     repeatTimeType > 0
                 );
             } else if(cmd === 'at' && repeatTimeType) { // run every repeatType on repeat
                 timer = new LongTimer(
                     () => {
-                        notifyUser(interaction.user, interaction.channel, reminder);
+                        sendReminderMessage(interaction.user, interaction.channel, reminder);
                         setNextReminderTimeout(
-                            () => notifyUser(interaction.user, interaction.channel, reminder),
+                            () => sendReminderMessage(interaction.user, interaction.channel, reminder),
                             reminder,
                             repeatTimeType
                         );
@@ -460,7 +474,7 @@ module.exports = {
             } else {
                 timer = new LongTimer(
                     () => {
-                        notifyUser(interaction.user, interaction.channel, reminder);
+                        sendReminderMessage(interaction.user, interaction.channel, reminder);
                         cancelReminder(reminder.id, interaction.user);
                     },
                     msToFutureTime,

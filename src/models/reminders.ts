@@ -8,6 +8,7 @@ export class Reminder extends Model<InferAttributes<Reminder>, InferCreationAttr
     declare repeat: CreationOptional<number>;
     declare time: Date;
     declare text: CreationOptional<string>;
+    declare private: Boolean;
     declare timer: LongTimer | undefined;
     static associate(models: any) { }
 }
@@ -45,6 +46,11 @@ export default function (sequelize: Sequelize.Sequelize) {
         text: {
             type: Sequelize.STRING,
             allowNull: true,
+            unique: false
+        },
+        private: {
+            type: Sequelize.BOOLEAN,
+            allowNull: false,
             unique: false
         },
         timer: {
