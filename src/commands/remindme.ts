@@ -274,7 +274,7 @@ module.exports = {
             )
             .addBooleanOption(option => option
                 .setName('private')
-                .setDescription('Hide reminder from other users?')
+                .setDescription('Send reminder in a private message?')
                 .setRequired(false)
             ),
         )
@@ -352,7 +352,7 @@ module.exports = {
             )
             .addBooleanOption(option => option
                 .setName('private')
-                .setDescription('Hide reminder from other users?')
+                .setDescription('Send reminder in a private message?')
                 .setRequired(false)
             ),
         )
@@ -437,18 +437,34 @@ module.exports = {
                 text,
                 isPrivate
             );
-            let confirmationMsg: string;
+
+            // build confirmation message depending on reminder type
             const futureDateString: string = `${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName})`;
+            const confirmationMsgCancelInstruction = `You can cancel this reminder by using: \`/remindme cancel ${reminder.id}\``
+            let confirmationMsg: string = "Alright! I'll notify you" + (isPrivate ? " in a direct message" : "") + ` on **${futureDateString}**`;
+
             if(!repeatTimeType) {
-                confirmationMsg = `Alright! I'll notify you on **${futureDateString}**.`;
+                // single time reminder
+                confirmationMsg += `.`;
             } else if (repeatTimeType === TimeType.custom) {
-                confirmationMsg = `Alright! I'll notify you every ${Math.round(msToFutureTime/1000)} seconds. First notification will be on **${futureDateString}**.`;
+                // repeating reminder on a fixed time length
+                confirmationMsg += ` and will then continue doing so every **${Math.round(msToFutureTime/1000)} seconds**.`;
             } else {
-                confirmationMsg = `Alright! I'll notify you on **${futureDateString}**`
-                    + ` and will then continue doing so every ${TimeType[reminder.repeat]}.`;
+                // repeating reminder on a fixed timestamp
+                confirmationMsg += ` and will then continue doing so every **${TimeType[reminder.repeat]}**.`;
             }
-            confirmationMsg += `\nYou can cancel this reminder by using: \`/remindme cancel ${reminder.id}\``;
-            interaction.editReply(confirmationMsg);
+            confirmationMsg += `\n${confirmationMsgCancelInstruction}`;
+
+            // if reminder is set to private, try to DM the confirmation message. If that fails, the confirmation message will be sent publicly with a note to allow DMs
+            if(!isPrivate)
+                interaction.editReply(confirmationMsg);
+            else {
+                const msg = await sendDirectMessage(interaction.client, interaction.user.id, confirmationMsg);
+                if(!msg)
+                    interaction.editReply(confirmationMsg + "\n\n**Warning: It appears I can't send you direct messages!** Make sure to allow messages from server members in your Discord settings, so I can message you!");
+                else
+                    interaction.deleteReply();
+            }
 
             // create timer and add timer to timer collection
             let timer : LongTimer;
