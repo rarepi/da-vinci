@@ -51,7 +51,7 @@ enum TimeType {
 }
 
 /** Stores a copy of every active reminder, each including a running timer */
-const ActiveReminders = new Map<number, Reminder>();
+const ActiveReminders = new Map<number, Reminder>(); // virtual field 'timer' of Reminder class cannot be retrieved from database, so we have to store the runtime objects TODO maybe just map Reminder id to timer and remove the virtual field?
 
 /**
  * Activates any reminders stored in database. This starts a timer for every reminder and catches up with possibly overdue reminders.
