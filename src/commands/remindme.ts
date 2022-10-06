@@ -1,14 +1,24 @@
 import Discord from "discord.js"
 import { SlashCommandBuilder } from '@discordjs/builders';
 import { DateTime } from 'luxon';
-import databaseModels from '../db';
-import { Reminder } from "../models/reminders";
 import { NamedTimeZones } from "../timezones";
 import { LongTimer } from "../longTimer";
 import { sendDirectMessage } from "../DiscordFunctionWrappers";
 
+import databaseModels from '../db';
+import { Reminder } from "../models/reminders"; // imported solely to avoid having to deal with 'any' typing of ReminderModel
 const ReminderModel = databaseModels.Reminder;
 
+/**
+ * Returns a new persistent Reminder object
+ * @param {string} userId Discord ID of the user creating the reminder
+ * @param {string | undefined} channelId Discord ID of the channel this reminder was created in
+ * @param {TimeType | null} repeat Enum indicating the type of repeating schedule this reminder should have
+ * @param {DateTime} time First date this reminder is due on
+ * @param {string | null} text Text that should be send with the reminder message
+ * @param {boolean} isPrivate Whether or not the reminder should be sent in private
+ * @returns {Promise<Reminder>} A persistent Reminder
+ */
 async function createReminder(userId: string, channelId: string | undefined, repeat: TimeType | null, time: DateTime, text: string | null, isPrivate: boolean) : Promise<Reminder> {
     return await ReminderModel.create({
         userId: userId,
@@ -20,7 +30,13 @@ async function createReminder(userId: string, channelId: string | undefined, rep
     });
 }
 
+/**
+ * An enum indicating the useable types of time for repeated scheduling
+ * @readonly
+ * @enum {number}
+ */
 enum TimeType {
+    /** No repeated scheduling */
     none = 0,
     year = 1,
     month = 2,
@@ -30,13 +46,25 @@ enum TimeType {
     minute = 6,
     second = 7,
     millisecond = 8,
+    /** A custom amount of milliseconds */
     custom = 9
 }
 
-// virtual fields can not be retrieved by fetching from database, so this Map stores a copy of every active reminder including their running timers
+/** Stores a copy of every active reminder, each including a running timer */
 const ActiveReminders = new Map<number, Reminder>();
 
+/**
+ * Activates any reminders stored in database. This starts a timer for every reminder and catches up with possibly overdue reminders.
+ * 
+ * To be used on startup and can thus not be called if there are active reminders running. 
+ * @param {Discord.Client} client Discord client instance
+ */
 async function startupReminders(client: Discord.Client) {
+    if(ActiveReminders.size > 0) {
+        console.warn("Reminder startup function has been called but there are reminders active already. Function call has been cancelled.");
+        return;
+    }
+
     const Reminders : Reminder[] = await ReminderModel.findAll();
 
     console.info(`Initiating ${Reminders.length} reminders...`);
@@ -75,7 +103,7 @@ async function startupReminders(client: Discord.Client) {
                 await notification?.edit(`${notification.content}\nNote: This repeated reminder was originally scheduled next for ${futureTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)} (${futureTime.zoneName}) but I was unavailable at the time.`);
 
                 while (msToFutureTime < 0) {     // find next future notification date
-                    futureTime = getNextTimeoutDateIteration(reminder.repeat, futureTime);
+                    futureTime = getNextScheduleDate(reminder.repeat, futureTime);
                     msToFutureTime = futureTime.toMillis() - now.toMillis();
                 }
                 reminder.time = futureTime.toJSDate();
@@ -86,15 +114,11 @@ async function startupReminders(client: Discord.Client) {
                 console.info(`Custom length Reminder #${reminder.id} has been purged due to missing implementations.`);
             } else {
                 console.debug(`Reminder #${reminder.id} set to ${msToFutureTime/1000} seconds. Set to repeat every ${TimeType[reminder.repeat]}.`);
-                // schedule repeated reminder in relation to first date
+                // schedule reminder message and then the repeated reminder in relation to first date
                 const timer = new LongTimer(
                     () => {
                         sendReminderMessage(user, channel, reminder);
-                        setNextReminderTimeout(
-                            () => sendReminderMessage(user, channel, reminder),
-                            reminder,
-                            reminder.repeat
-                        );
+                        scheduleReminderInterval(client, reminder);
                     },
                     msToFutureTime
                 )
@@ -108,6 +132,14 @@ async function startupReminders(client: Discord.Client) {
     console.info(`${ActiveReminders.size} reminders are now active.`);
 }
 
+/**
+ * Cancels a reminder by id, if the given Discord user is the author of the reminder.
+ * 
+ * This effectively deletes the database instance, removes it from active reminders and stops the associated timer.
+ * @param {number} id Id of the reminder to be cancelled
+ * @param {Discord.User} user Discord user who invoked the function call
+ * @returns {Promise<boolean>} Whether or not a reminder has been cancelled
+ */
 async function cancelReminder(id: number, user: Discord.User) : Promise<boolean> {
     // get database instance and check if user calling this is the owner
     const reminder = await Reminder.findByPk(id);
@@ -125,6 +157,14 @@ async function cancelReminder(id: number, user: Discord.User) : Promise<boolean>
     return true;
 }
 
+/**
+ * Sends the message acting as the scheduled reminder to the user
+ * @param {Discord.User} user Discord user to be messaged
+ * @param {Discord.User} channel Discord channel the message will be sent in
+ * @param {Discord.User} reminder Reminder that is being executed
+ * @returns {Promise<Discord.Message | null>} The message that was sent
+ */
+// TODO: reminder has user and channel id, so this function just needs a client to fetch those. what's more elegant?
 async function sendReminderMessage(user: Discord.User, channel: Discord.TextBasedChannel | null, reminder: Reminder) : Promise<Discord.Message | null> {
     let text = reminder.text ?? `This is your scheduled notification. There was no message provided.`;
     if (reminder.repeat)
@@ -138,37 +178,63 @@ async function sendReminderMessage(user: Discord.User, channel: Discord.TextBase
         return await sendDirectMessage(user.client, user.id, messageContent) ?? null;   // fails without crash if user has DMs disabled
 }
 
-function getNextTimeoutDateIteration(timeType: TimeType, timeoutDate: DateTime) : DateTime {
+/**
+ * Returns the next schedule date
+ * @param {TimeType} timeType Enum indicating the time difference the new date will have (e.g. TimeType.month to iterate the current schedule date by a month)
+ * @param {DateTime} currentScheduleDate Current schedule date
+ * @returns {DateTime} The next schedule date
+ */
+function getNextScheduleDate(timeType: TimeType, currentScheduleDate: DateTime) : DateTime {
     switch (timeType) {
         case TimeType.year:
-            return timeoutDate.plus({ years: 1 });
+            return currentScheduleDate.plus({ years: 1 });
         case TimeType.month:
-            return timeoutDate.plus({ months: 1 });
+            return currentScheduleDate.plus({ months: 1 });
         case TimeType.week:
-            return timeoutDate.plus({ week: 1 });
+            return currentScheduleDate.plus({ week: 1 });
         case TimeType.day:
-            return timeoutDate.plus({ days: 1 });
+            return currentScheduleDate.plus({ days: 1 });
         case TimeType.hour:
-            return timeoutDate.plus({ hours: 1 });
+            return currentScheduleDate.plus({ hours: 1 });
         case TimeType.minute:
-            return timeoutDate.plus({ minutes: 1 });
+            return currentScheduleDate.plus({ minutes: 1 });
         case TimeType.second:
-            return timeoutDate.plus({ seconds: 1 });
+            return currentScheduleDate.plus({ seconds: 1 });
+        case TimeType.none:
+        case TimeType.custom:
+            console.error(`getNextScheduleDate: '${timeType}' is not a valid TimeType for scheduling.`);
+            return DateTime.invalid(`'${timeType}' is not a valid TimeType for scheduling.`);
         default:
-            console.error(`getNextTimeout: Unknown TimeType: ${timeType}`)
-            return DateTime.invalid(`Unknown TimeType: ${timeType}`);
+            console.error(`getNextScheduleDate: Unsupported TimeType: ${timeType}`);
+            return DateTime.invalid(`Unsupported TimeType: ${timeType}`);
     }
 }
-async function setNextReminderTimeout(callback: () => void, reminder: Reminder, timeType: TimeType) {
-    const nextTimeoutDate = getNextTimeoutDateIteration(timeType, DateTime.fromJSDate(reminder.time));
+
+/**
+ * Sends messages on a time interval of variable length for the given repeated reminder
+ * @param {Function} client Discord client instance
+ * @param {Reminder} reminder Scheduled Reminder
+ */
+async function scheduleReminderInterval(client: Discord.Client, reminder: Reminder) {
+    if(reminder.repeat === TimeType.none) {
+        console.error(`Reminder interval scheduler was called, but given reminder #${reminder.id} is not set to repeat.`);
+        return;
+    }
+
+    if(reminder.repeat === TimeType.custom) {
+        console.error(`Reminder interval scheduler was called, but given reminder #${reminder.id} runs on a fixed time length schedule.`);  // TODO include these into the scheduler maybe?
+        return;
+    }
+
+    const nextTimeoutDate = getNextScheduleDate(reminder.repeat, DateTime.fromJSDate(reminder.time));
     const now = DateTime.now();
     console.debug("Scheduling next timeout");
     // set next timer
     reminder.timer?.cancel();
     reminder.timer = new LongTimer(
-        () => {
-            callback();
-            setNextReminderTimeout(callback, reminder, timeType);
+        async () => {
+            sendReminderMessage(await client.users.fetch(reminder.userId), await client.channels.fetch(reminder.channelId) as Discord.TextBasedChannel, reminder);
+            scheduleReminderInterval(client, reminder);
         },
         nextTimeoutDate.toMillis() - now.toMillis()
     );
@@ -366,7 +432,7 @@ module.exports = {
         ),
     /**
      * Executes the command
-     * @param {Discord.ChatInputCommandInteraction} interaction The Discord interaction that called this command
+     * @param {Discord.ChatInputCommandInteraction} interaction Discord interaction that called this command
      */
     async execute(interaction: Discord.ChatInputCommandInteraction) {
         const now = DateTime.fromJSDate(interaction.createdAt);
@@ -477,12 +543,8 @@ module.exports = {
             } else if(cmd === 'at' && repeatTimeType) { // run every repeatType on repeat
                 timer = new LongTimer(
                     () => {
-                        sendReminderMessage(interaction.user, interaction.channel, reminder);
-                        setNextReminderTimeout(
-                            () => sendReminderMessage(interaction.user, interaction.channel, reminder),
-                            reminder,
-                            repeatTimeType
-                        );
+                        sendReminderMessage(interaction.user, interaction.channel, reminder);   // TODO just call the interval - why am I still creating a timer by hand for this case?
+                        scheduleReminderInterval(interaction.client, reminder);
                     },
                     msToFutureTime,
                     repeatTimeType > 0
@@ -505,6 +567,10 @@ module.exports = {
             //reminder.save();  // timer is a virtual attribute - no need to update database if nothing else was changed since creation
         }
     },
+    /**
+     * Used to respond to autocomplete interactions. Responds with an array of named timezones (partially) matching the users input
+     * @param {Discord.AutocompleteInteraction} interaction Discord interaction that requested this autocomplete response
+     */
     async autocomplete(interaction: Discord.AutocompleteInteraction) {
         const focusedValue = interaction.options.getFocused();
 
