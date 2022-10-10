@@ -4,7 +4,8 @@ import Fs from 'fs';
 import Path from 'path';
 import Discord from "discord.js"
 
-const RGX_REDDIT_URL = /^[^\r\n]*(https?:\/\/(?:www\.)?reddit\.com\/r\/\w+?\/(?:comments\/)?\w+\/?)[^\r\n]*$/gm
+const RGX_REDDIT_URL = /^[^\r\n]*(https?:\/\/(?:www\.)?reddit\.com\/r\/\w+?\/(?:comments\/)?\w+\/?)[^\r\n]*$/m
+const RGX_REDDIT_VIDEO_URL = /(?<audioPrefix>https?:\/\/\S+\/(?<id>\w+)\/DASH_)\d+(?<audioSuffix>\.mp4)/ // [0] = clean file url   groups.id = file id   groups.audioPrefix + "audio" + groups.audioSuffix = audio url
 const PATH_TO_DL_DIR = Path.resolve("./", 'temp');
 Fs.promises.mkdir(PATH_TO_DL_DIR, { recursive: true }).catch(console.error);
 
@@ -92,26 +93,25 @@ async function execute(message: Discord.Message, url: string) {
     const result = (await Axios.get(`${url}.json`));
 
     // extract video and audio URLs
-    let reddit_video: string, reddit_audio: string;
-    if (result?.data?.[0]?.data?.children?.[0]?.data?.hasOwnProperty(`crosspost_parent_list`)
-        && result?.data?.[0]?.data?.children?.[0]?.data?.crosspost_parent_list?.[0]?.media?.hasOwnProperty(`reddit_video`)) {
-        reddit_video = result.data[0].data.children[0].data.crosspost_parent_list?.[0].media.reddit_video.fallback_url
-            .replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_\d+\.mp4)\S+$/g, '');
-        reddit_audio = reddit_video.replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_)\d+(?=\.mp4(\S*)$)/g, "audio");
+    let fallback_url: string;
+    if (result?.data?.[0]?.data?.children?.[0]?.data?.crosspost_parent_list?.[0]?.media?.hasOwnProperty(`reddit_video`)) {
+        fallback_url = result.data[0].data.children[0].data.crosspost_parent_list?.[0].media.reddit_video.fallback_url;
     } else if (result?.data?.[0]?.data?.children?.[0]?.data?.media?.hasOwnProperty(`reddit_video`)) {
-        reddit_video = result.data[0].data.children[0].data.media.reddit_video.fallback_url
-            .replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_\d+\.mp4)\S+$/g, '');
-        reddit_audio = reddit_video.replace(/(?<=^https?:\/\/v\.redd\.it\/\w+\/DASH_)\d+(?=\.mp4(\S*)$)/g, "audio");
+        fallback_url = result.data[0].data.children[0].data.media.reddit_video.fallback_url;
     } else {
         return;
     }
 
-    // use reddit's video filename as output filename
-    let filename: string = /(?<=^https?:\/\/v\.redd\.it\/)\w+(?=\/DASH_\d+\.mp4\S*$)/.exec(reddit_video)?.[0] ?? "";
-    if (filename.length <= 0) {
-        console.error(`Failed to determine output filename.`);
+    console.debug(`Extracted fallback url: ${fallback_url}`);
+    const video_url = RGX_REDDIT_VIDEO_URL.exec(fallback_url);
+    if (!video_url) {
+        console.error(`Failed to extract video url.`);
         return;
     }
+    const reddit_video = video_url[0];
+    const reddit_audio = video_url.groups!.audioPrefix + "audio" + video_url.groups!.audioSuffix;
+    const filename = video_url.groups!.id; // use reddit's video id as output filename
+
 
     // check if file size exceeds discord limits
     const videoSize = await requestFileSize(reddit_video)
@@ -157,28 +157,39 @@ async function execute(message: Discord.Message, url: string) {
             pArgs.push(`-i`, audioPath);    // input file (audio)
         }
         pArgs.push(`-c`, `copy`, `${outPath}`); // selects "copy" as encoder (just copies the input streams without encoding)
+        pArgs.push(`-loglevel`, `warning`); // stops verbose stderr ( https://stackoverflow.com/a/35215447/5920409 ) although this apparently also silents stdout entirely, but atleast errors are detectable this way
+        pArgs.push(`-nostats`)
         const p = spawn('ffmpeg', pArgs);
         var pOut = "";
         var pErr = "";
 
+        // seems to be always empty with -loglevel warning
         p.stdout.on('data', (data: any) => {
             let dataStr = data.toString('utf8');
             pOut += dataStr;
         });
 
-        p.stdout.on('close', (data: any) => {
-            console.info(pOut);
+        p.stdout.on('close', () => {
+            if(pOut.length > 0) {
+                console.debug(`--- FFMPEG OUTPUT ---`)
+                console.debug(pOut);
+                console.debug(`---------------------`)
+            }
             console.info(`Muxing completed.`);
             success();
         });
 
         p.stderr.on('data', (data: any) => {
-            console.error(data.toString('utf8'));
+            let dataStr = data.toString('utf8');
+            pErr += dataStr;
         });
-        p.stderr.on('close', (data: any) => {
-            //pyErr += data.toString('utf8').trim();
-            //console.error("\x1b[42m%s\x1b[0m", pErr);
-            //nosuccess(pErr);
+
+        p.stderr.on('close', () => {
+            if(pErr.length > 0) {
+                console.error(`--- FFMPEG ERROR ---`)
+                console.error(pErr);
+                console.error(`--------------------`)
+            }
         });
     });
 
