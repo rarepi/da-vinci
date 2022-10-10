@@ -5,13 +5,13 @@ import Discord from "discord.js"
  */
 export interface Command {
     /** A function to be called before 'data' is added to the client */
-    prepare?: () => void,
+    prepare?: () => Promise<void>,
     /** A SlashCommandBuilder defining the full structure of the command */
     data: Discord.SlashCommandBuilder,
     /** A function to be executed when the slash command is called */
-    execute: (interaction: Discord.ChatInputCommandInteraction) => void,
+    execute: (interaction: Discord.ChatInputCommandInteraction) => Promise<void>,
     /** A function to be executed when the slash command requests autocompletion */
-    autocomplete?: (interaction: Discord.AutocompleteInteraction) => void
+    autocomplete?: (interaction: Discord.AutocompleteInteraction) => Promise<void>
 }
 
 /**
