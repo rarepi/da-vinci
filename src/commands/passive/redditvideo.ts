@@ -70,7 +70,7 @@ async function downloadFile(url: string, filename: string): Promise<string> {
     })
 }
 
-export function setupRedditVideoDownloader(client: Discord.Client) {
+export function setup(client: Discord.Client) {
     client.on('messageCreate', message => {
         if (message.author.bot) return; // ignore bot messages, including my own
         const match = RGX_REDDIT_URL.exec(message.content);

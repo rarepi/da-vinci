@@ -1,6 +1,32 @@
 import Discord from "discord.js"
 
 /**
+ * Defines the structure of a slash command object
+ */
+export interface Command {
+    /** A function to be called before 'data' is added to the client */
+    prepare?: () => void,
+    /** A SlashCommandBuilder defining the full structure of the command */
+    data: Discord.SlashCommandBuilder,
+    /** A function to be executed when the slash command is called */
+    execute: (interaction: Discord.ChatInputCommandInteraction) => void,
+    /** A function to be executed when the slash command requests autocompletion */
+    autocomplete?: (interaction: Discord.AutocompleteInteraction) => void
+}
+
+/**
+ * Extends the default Discord.Client class by a collection of slash commands
+ */
+export class ClientWithCommands extends Discord.Client {
+    commands : Discord.Collection<string, Command>
+
+    constructor(options: Discord.ClientOptions) {
+        super(options)
+        this.commands = new Discord.Collection<string, Command>();
+    }
+}
+
+/**
  * Sends a message to the channel of the given id
  * @param {Discord.Client} client Discord client instance
  * @param {string} channelId Id of the channel the message will be sent to

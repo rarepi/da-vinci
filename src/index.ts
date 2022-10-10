@@ -1,10 +1,10 @@
 import fs from 'fs';
 import Discord from "discord.js";
-import { setupRedditVideoDownloader } from './commands/passive/redditvideo';
-import { setupSteamURLConverter } from './commands/passive/steamurl';
+import * as redditvideo from './commands/passive/redditvideo';
+import * as steamurl from './commands/passive/steamurl';
 import { sync as synchronizeDatabaseModels } from './db';
-import { setupCLI } from './commandline';
-import { ClientWithCommands, Command } from './commandType';
+import * as CLI from './commandline';
+import * as DiscordUtils from './DiscordUtils';
 import { token } from '../config.json';
 
 const OWNER_ID = "268469541841928193";
@@ -22,7 +22,7 @@ console.debug(`Detected locale: ${USER_LOCALE}; Detected timezone: ${USER_TIMEZO
 /*
     setup Discord client
 */
-const client = new ClientWithCommands({
+const client = new DiscordUtils.ClientWithCommands({
     intents: [
         Discord.GatewayIntentBits.Guilds,
         Discord.GatewayIntentBits.GuildMessages,
@@ -39,7 +39,7 @@ async function readCommandFiles() {
     const commandFiles = fs.readdirSync('src/commands').filter((file: string) => file.endsWith('.ts'));
 
     for (const file of commandFiles) {
-        const command: Command = await import(`./commands/${file}`) as unknown as Command; // use Command interface to assume the existence of its properties
+        const command: DiscordUtils.Command = await import(`./commands/${file}`) as unknown as DiscordUtils.Command; // use Command interface to assume the existence of its properties
         if (command.prepare != undefined) {  // allows the call of an async function inside a command file
             await command.prepare();
         }
@@ -119,8 +119,7 @@ function setupChatLog() {
 function setupCommandListeners() {
     // execute commands on interaction
     client.on('interactionCreate', async interaction => {
-        if (interaction.type !== Discord.InteractionType.ApplicationCommand) return;
-
+        if (!interaction.isChatInputCommand()) return;
         const command = client.commands.get(interaction.commandName);
         if (!command) return;
         try {
@@ -146,8 +145,8 @@ function setupCommandListeners() {
 }
 
 function setupPassiveFunctions() {
-    setupRedditVideoDownloader(client);
-    setupSteamURLConverter(client);
+    redditvideo.setup(client);
+    steamurl.setup(client);
 }
 
 async function initiateReminders() {
@@ -158,7 +157,7 @@ async function initiateReminders() {
 function login() {
     // runs once after login
     client.once('ready', () => {
-        setupCLI(client);
+        CLI.setup(client);
 
         client.user?.setPresence({
             status: 'online',

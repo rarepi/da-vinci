@@ -1,7 +1,6 @@
 import Discord from "discord.js"
 import { clientId, token } from '../config.json';
-import { ClientWithCommands } from './commandType';
-import { sendDirectMessage, sendChannelMessage } from './DiscordFunctionWrappers'
+import * as DiscordUtils from './DiscordUtils'
 
 /** Map storing commands by aliases */
 type FunctionMap = {
@@ -10,9 +9,9 @@ type FunctionMap = {
 
 /**
  * Opens a listener to the stdin and executes any known command inputs
- * @param {ClientWithCommands} client Discord client instance
+ * @param {DiscordClientWithCommands} client Discord client instance
  */
-export function setupCLI(client: ClientWithCommands) {
+export function setup(client: DiscordUtils.ClientWithCommands) {
     const stdin = process.openStdin();
     const cli = new CLI(client);
 
@@ -32,11 +31,11 @@ export function setupCLI(client: ClientWithCommands) {
  * Defines various commands callable from CLI and provides a map of aliases to call them by name
  */
 class CLI {
-    client: ClientWithCommands;
+    client: DiscordUtils.ClientWithCommands;
     /**
      * @param client Discord client instance
      */
-    constructor(client: ClientWithCommands) {
+    constructor(client: DiscordUtils.ClientWithCommands) {
         this.client = client;
     }
 
@@ -57,7 +56,7 @@ class CLI {
      * @param {string} message The text message to be sent
      */
     private say = async (channelId: string, ...message: string[]) => {
-        await sendChannelMessage(this.client, channelId, ...message);
+        await DiscordUtils.sendChannelMessage(this.client, channelId, ...message);
     }
 
     /**
@@ -66,7 +65,7 @@ class CLI {
      * @param {string} message The text message to be sent
      */
     private dm = async (userId: string, ...message: string[]) => {
-        await sendDirectMessage(this.client, userId, ...message);
+        await DiscordUtils.sendDirectMessage(this.client, userId, ...message);
     }
 
     /**

@@ -2,7 +2,7 @@ import Discord from "discord.js"
 
 const RGX_STEAM_URL = /^(?:[^\r\n]+ )*<?((?:https?:\/\/)?(?:\w+\.)*steam(?:powered|community).com\/?\S*?)>?(?: [^\r\n]+)*$/gm
 
-export function setupSteamURLConverter(client: Discord.Client) {
+export function setup(client: Discord.Client) {
     client.on('messageCreate', message => {
         if (message.author.id === client.user?.id) return;  // ignore my own messages
         const match = RGX_STEAM_URL.exec(message.content);

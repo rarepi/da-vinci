@@ -3,7 +3,7 @@ import { SlashCommandBuilder } from '@discordjs/builders';
 import { DateTime } from 'luxon';
 import { NamedTimeZones } from "../timezones";
 import { LongTimer } from "../longTimer";
-import { sendDirectMessage } from "../DiscordFunctionWrappers";
+import * as DiscordUtils from "../DiscordUtils";
 
 import databaseModels from '../db';
 import { Reminder } from "../models/reminders"; // imported solely to avoid having to deal with 'any' typing of ReminderModel
@@ -175,7 +175,7 @@ async function sendReminderMessage(user: Discord.User, channel: Discord.TextBase
     if (channel && !reminder.private)
         return await channel.send({ content: messageContent });
     else
-        return await sendDirectMessage(user.client, user.id, messageContent) ?? null;   // fails without crash if user has DMs disabled
+        return await DiscordUtils.sendDirectMessage(user.client, user.id, messageContent) ?? null;   // fails without crash if user has DMs disabled
 }
 
 /**
@@ -525,7 +525,7 @@ module.exports = {
             if(!isPrivate)
                 interaction.editReply(confirmationMsg);
             else {
-                const msg = await sendDirectMessage(interaction.client, interaction.user.id, confirmationMsg);
+                const msg = await DiscordUtils.sendDirectMessage(interaction.client, interaction.user.id, confirmationMsg);
                 if(!msg)
                     interaction.editReply(confirmationMsg + "\n\n**Warning: It appears I can't send you direct messages!** Make sure to allow messages from server members in your Discord settings, so I can message you!");
                 else
